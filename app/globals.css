@@ -1,26 +1,78 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
-
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --color-background: #f8f7f5;
+  --color-foreground: #171717;
+  --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+* {
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  height: 100%;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  min-height: 100%;
+  background: #f8f7f5;
+  color: #171717;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  overscroll-behavior: none;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Swipe card animations */
+@keyframes swipeOutLeft {
+  to {
+    transform: translateX(-130%) rotate(-8deg);
+    opacity: 0;
+  }
+}
+
+@keyframes swipeOutRight {
+  to {
+    transform: translateX(130%) rotate(8deg);
+    opacity: 0;
+  }
+}
+
+@keyframes snapBack {
+  to {
+    transform: translateX(0);
+  }
+}
+
+.animate-swipe-out-left {
+  animation: swipeOutLeft 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+.animate-swipe-out-right {
+  animation: swipeOutRight 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+}
+
+/* Bottom sheet popup animation */
+@keyframes slideUp {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.28s cubic-bezier(0.34, 1.2, 0.64, 1) forwards;
+}
+
+.animate-fade-in {
+  animation: fadeIn 0.2s ease forwards;
 }

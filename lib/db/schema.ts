@@ -98,6 +98,7 @@ export const reports = pgTable("reports", {
     .references(() => items.id, { onDelete: "cascade" }),
   reportedOn: date("reported_on", { mode: "date" }).notNull(),
   kind: text("kind", { enum: ["soon", "out", "still"] }).notNull(),
+  stockLevel: text("stock_level", { enum: ["plenty", "normal", "low"] }),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
 })
 
@@ -123,3 +124,4 @@ export type Purchase = typeof purchases.$inferSelect
 export type Report = typeof reports.$inferSelect
 export type QtyTag = "more" | "normal" | "less"
 export type ReportKind = "soon" | "out" | "still"
+export type StockLevel = "plenty" | "normal" | "low"

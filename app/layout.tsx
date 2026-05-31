@@ -1,4 +1,4 @@
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import "./globals.css"
 import SwRegistration from "@/components/SwRegistration"
 
@@ -12,6 +12,12 @@ export const metadata: Metadata = {
   },
 }
 
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  viewportFit: "cover",
+}
+
 export default function RootLayout({
   children,
 }: {
@@ -23,7 +29,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon.svg" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-full bg-slate-50 text-slate-900 antialiased">
+      <body className="min-h-full antialiased">
         {children}
         <SwRegistration />
       </body>

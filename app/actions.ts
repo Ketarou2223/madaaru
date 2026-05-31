@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { db } from "@/lib/db"
 import { items, purchases, reports } from "@/lib/db/schema"
-import type { QtyTag, ReportKind } from "@/lib/db/schema"
+import type { QtyTag, ReportKind, StockLevel } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 
 type ActionResult = { error: string } | { success: true }
@@ -70,7 +70,8 @@ export async function recordPurchase(
 
 export async function recordReport(
   itemId: string,
-  kind: ReportKind
+  kind: ReportKind,
+  stockLevel?: StockLevel
 ): Promise<ActionResult> {
   const userId = await getUserId()
   if (!userId) return { error: "ログインが必要です" }
@@ -89,11 +90,17 @@ export async function recordReport(
     itemId,
     reportedOn: today,
     kind,
+    ...(stockLevel ? { stockLevel } : {}),
   })
 
   revalidatePath("/")
   revalidatePath("/shopping")
   return { success: true }
+}
+
+export async function signOutAction(): Promise<void> {
+  const { signOut } = await import("@/lib/auth")
+  await signOut({ redirectTo: "/" })
 }
 
 export async function deleteItem(itemId: string): Promise<ActionResult> {

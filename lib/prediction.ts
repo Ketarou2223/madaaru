@@ -1,4 +1,4 @@
-import type { QtyTag, ReportKind } from "@/lib/db/schema"
+import type { QtyTag, ReportKind, StockLevel } from "@/lib/db/schema"
 
 // ── Tunable constants ──────────────────────────────────────────────────────
 // Adjust these to tune prediction behavior without touching the algorithm.
@@ -11,11 +11,19 @@ export const PREDICTION_CONFIG = {
     less: 0.7,
   } as Record<QtyTag, number>,
 
-  // Each "still have it" report stretches the interval by this fraction
-  STILL_CORRECTION_FACTOR: 0.1,
+  // Per "still" report, stretch the interval by this fraction based on reported stock level.
+  // Null/missing stockLevel defaults to "normal".
+  STOCK_LEVEL_CORRECTION: {
+    plenty: 0.2,  // lots left → big stretch
+    normal: 0.1,  // standard
+    low: 0.03,    // almost out → barely stretches
+  } as Record<StockLevel, number>,
 
   // Maximum stretch factor from "still" reports (1.5 = 50% longer max)
   STILL_CORRECTION_MAX_FACTOR: 1.5,
+
+  // Items with daysRemaining <= this threshold appear in the "まだある？" tab
+  HOME_TAB_THRESHOLD_DAYS: 7,
 } as const
 
 // ── Types ──────────────────────────────────────────────────────────────────
@@ -30,6 +38,7 @@ export interface PurchaseInput {
 export interface ReportInput {
   reportedOn: Date
   kind: ReportKind
+  stockLevel?: StockLevel | null
 }
 
 export interface PredictionResult {
@@ -77,7 +86,7 @@ export function predict(
   reports: ReportInput[],
   today: Date = new Date()
 ): PredictionResult {
-  const { QTY_COEFFICIENTS, STILL_CORRECTION_FACTOR, STILL_CORRECTION_MAX_FACTOR } =
+  const { QTY_COEFFICIENTS, STOCK_LEVEL_CORRECTION, STILL_CORRECTION_MAX_FACTOR } =
     PREDICTION_CONFIG
 
   const sortedPurchases = [...purchases].sort(
@@ -134,16 +143,16 @@ export function predict(
   )
   let baseInterval = weightedSum / totalWeight
 
-  // 3. Apply 'still' correction for reports after the last purchase
+  // 3. Apply 'still' correction for reports after the last purchase.
+  //    Stock level determines how much each report stretches the interval.
   const lastPurchase = sortedPurchases[sortedPurchases.length - 1]
-  const stillCount = sortedReports.filter(
-    (r) => r.kind === "still" && r.reportedOn > lastPurchase.purchasedOn
-  ).length
-
-  const correctionFactor = Math.min(
-    1 + STILL_CORRECTION_FACTOR * stillCount,
-    STILL_CORRECTION_MAX_FACTOR
-  )
+  let stockCorrection = 0
+  for (const r of sortedReports) {
+    if (r.kind === "still" && r.reportedOn > lastPurchase.purchasedOn) {
+      stockCorrection += STOCK_LEVEL_CORRECTION[r.stockLevel ?? "normal"]
+    }
+  }
+  const correctionFactor = Math.min(1 + stockCorrection, STILL_CORRECTION_MAX_FACTOR)
   baseInterval *= correctionFactor
 
   // 4. Scale base interval by last purchase's quantity tag

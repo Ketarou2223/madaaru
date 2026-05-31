@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react"
 import { addItem } from "@/app/actions"
+import { PlusIcon, XIcon } from "./icons"
 
 export default function AddItemModal() {
   const [open, setOpen] = useState(false)
@@ -27,64 +28,77 @@ export default function AddItemModal() {
       {/* FAB */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-sky-500 text-2xl text-white shadow-lg hover:bg-sky-600 active:scale-95 transition-all z-40"
+        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg hover:bg-teal-700 active:scale-95 transition-all z-40"
         aria-label="品目を追加"
       >
-        ＋
+        <PlusIcon size={24} />
       </button>
 
       {open && (
         <div
-          className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-4"
+          className="fixed inset-0 z-50 flex items-end justify-center animate-fade-in"
+          style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
           onClick={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl">
-            <h3 className="text-lg font-bold text-slate-800 mb-5">品目を追加</h3>
+          <div className="animate-slide-up w-full max-w-lg bg-white rounded-t-3xl px-6 pb-10 pt-5 shadow-2xl">
+            <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-stone-200" />
+
+            <div className="flex items-center justify-between mb-6">
+              <div>
+                <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">追加</p>
+                <h3 className="text-xl font-semibold text-stone-900">品目を追加</h3>
+              </div>
+              <button
+                onClick={() => { setOpen(false); setError("") }}
+                className="flex h-8 w-8 items-center justify-center rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 transition-colors"
+              >
+                <XIcon size={16} />
+              </button>
+            </div>
 
             <form ref={formRef} action={handleSubmit} className="space-y-4">
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600">
-                  品名 <span className="text-rose-500">*</span>
+                <label className="mb-1.5 block text-sm font-medium text-stone-600">
+                  品名 <span className="text-rose-400">*</span>
                 </label>
                 <input
                   type="text"
                   name="name"
                   required
                   placeholder="例：シャンプー、トイレットペーパー"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-800 placeholder-slate-300 focus:border-sky-500 focus:outline-none"
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 placeholder-stone-300 focus:border-teal-500 focus:bg-white focus:outline-none transition-colors"
                   autoFocus
                 />
               </div>
 
               <div>
-                <label className="mb-1 block text-sm font-medium text-slate-600">
-                  カテゴリ <span className="text-slate-400 font-normal">（任意）</span>
+                <label className="mb-1.5 block text-sm font-medium text-stone-600">
+                  カテゴリ <span className="text-stone-400 font-normal">（任意）</span>
                 </label>
                 <input
                   type="text"
                   name="category"
                   placeholder="例：洗剤、食品"
-                  className="w-full rounded-xl border border-slate-200 px-3 py-2.5 text-slate-800 placeholder-slate-300 focus:border-sky-500 focus:outline-none"
+                  className="w-full rounded-2xl border border-stone-200 bg-stone-50 px-4 py-3 text-stone-800 placeholder-stone-300 focus:border-teal-500 focus:bg-white focus:outline-none transition-colors"
                 />
               </div>
 
-              {error && <p className="text-sm text-rose-600">{error}</p>}
+              {error && (
+                <p className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-600">{error}</p>
+              )}
 
-              <div className="flex gap-2 pt-2">
+              <div className="flex gap-3 pt-2">
                 <button
                   type="button"
-                  onClick={() => {
-                    setOpen(false)
-                    setError("")
-                  }}
-                  className="flex-1 rounded-xl border border-slate-200 py-2.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  onClick={() => { setOpen(false); setError("") }}
+                  className="flex-1 rounded-2xl border border-stone-200 py-3 text-sm font-medium text-stone-600 hover:bg-stone-50 transition-colors"
                 >
                   キャンセル
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-sky-500 py-2.5 text-sm font-semibold text-white hover:bg-sky-600 disabled:opacity-50"
+                  className="flex-1 rounded-2xl bg-teal-600 py-3 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-[0.98]"
                 >
                   {loading ? "追加中…" : "追加する"}
                 </button>

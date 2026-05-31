@@ -1,6 +1,7 @@
 "use client"
 
 import { useEffect, useState } from "react"
+import { XIcon } from "./icons"
 
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>
@@ -9,10 +10,9 @@ interface BeforeInstallPromptEvent extends Event {
 
 export default function InstallPrompt() {
   const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null)
-  const [dismissed, setDismissed] = useState(true) // start hidden
+  const [dismissed, setDismissed] = useState(true)
 
   useEffect(() => {
-    // Already dismissed this session
     if (sessionStorage.getItem("install-dismissed")) return
 
     const handler = (e: Event) => {
@@ -29,9 +29,7 @@ export default function InstallPrompt() {
     if (!deferredPrompt) return
     await deferredPrompt.prompt()
     const { outcome } = await deferredPrompt.userChoice
-    if (outcome === "accepted") {
-      setDismissed(true)
-    }
+    if (outcome === "accepted") setDismissed(true)
     setDeferredPrompt(null)
   }
 
@@ -43,23 +41,24 @@ export default function InstallPrompt() {
   if (dismissed || !deferredPrompt) return null
 
   return (
-    <div className="flex items-center justify-between gap-3 rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3">
+    <div className="fixed top-0 left-0 right-0 z-30 flex items-center justify-between gap-3 bg-teal-600 px-5 py-3 text-white shadow-lg">
       <div>
-        <p className="text-sm font-medium text-sky-800">ホーム画面に追加しますか？</p>
-        <p className="text-xs text-sky-600">いつでもすぐ開けます</p>
+        <p className="text-sm font-semibold">ホーム画面に追加しますか？</p>
+        <p className="text-xs text-teal-100">いつでもすぐ開けます</p>
       </div>
-      <div className="flex gap-2 shrink-0">
-        <button
-          onClick={handleDismiss}
-          className="text-xs text-slate-400 hover:text-slate-600"
-        >
-          あとで
-        </button>
+      <div className="flex items-center gap-2 shrink-0">
         <button
           onClick={handleInstall}
-          className="rounded-lg bg-sky-500 px-3 py-1.5 text-xs font-semibold text-white hover:bg-sky-600"
+          className="rounded-xl bg-white px-3.5 py-1.5 text-xs font-semibold text-teal-700 hover:bg-teal-50 transition-colors"
         >
           追加
+        </button>
+        <button
+          onClick={handleDismiss}
+          className="flex h-7 w-7 items-center justify-center rounded-full hover:bg-teal-500 transition-colors"
+          aria-label="閉じる"
+        >
+          <XIcon size={14} />
         </button>
       </div>
     </div>
