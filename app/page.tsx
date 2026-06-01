@@ -83,14 +83,19 @@ export default async function HomePage() {
       today
     )
 
-    const lastPurchase = sortedPurchases[sortedPurchases.length - 1]
+    // Find the purchase with the most recent createdAt (actual insertion time)
+    const lastPurchase = item.purchases.length > 0
+      ? item.purchases.reduce((max, p) =>
+          new Date(p.createdAt).getTime() > new Date(max.createdAt).getTime() ? p : max
+        )
+      : null
 
-    // Find last report after the most recent purchase
+    // Find last report created strictly after the most recent purchase (by insertion time)
     const lastReportAfterPurchase = sortedReports
       .filter(
         (r) =>
           !lastPurchase ||
-          new Date(r.reportedOn).getTime() >= new Date(lastPurchase.purchasedOn).getTime()
+          new Date(r.createdAt).getTime() > new Date(lastPurchase.createdAt).getTime()
       )
       .at(-1)
 
@@ -119,6 +124,7 @@ export default async function HomePage() {
         category: item.category,
         prediction: predictionData,
         lastStockLevel: lastStockLevel as "plenty" | "normal" | "low" | null,
+        lastReportId: lastReportAfterPurchase?.id ?? null,
       })
       // If stock level is "low", also suggest in shopping list
       if (lastStockLevel === "low") {
@@ -148,6 +154,7 @@ export default async function HomePage() {
           category: item.category,
           prediction: predictionData,
           lastStockLevel: null,
+          lastReportId: null,  // prediction-based: no report to undo
         })
       }
     }

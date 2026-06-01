@@ -7,7 +7,8 @@ import { recordReport, undoReport } from "@/app/actions"
 import type { StockLevel } from "@/lib/db/schema"
 import type { ConfidenceLevel } from "@/lib/prediction"
 import type { UndoConfig } from "./UndoToast"
-import { LayersIcon } from "./icons"
+import { ShoppingCartIcon, CheckIcon } from "./icons"
+import { SWIPE_ACTIONS } from "@/lib/swipe-config"
 
 export interface HomeItem {
   id: string
@@ -25,28 +26,70 @@ interface HomeTabProps {
   onShowUndo: (config: UndoConfig) => void
 }
 
+function daysLabel(days: number | null) {
+  if (days === null) return "学習中"
+  if (days < 0) return `${Math.abs(days)}日 超過`
+  if (days === 0) return "今日切れそう"
+  if (days === 1) return "明日切れそう"
+  return `残り約 ${days}日`
+}
+
+function urgencyColor(days: number | null): string {
+  if (days === null) return "text-stone-400"
+  if (days <= 0) return "text-rose-600"
+  if (days <= 3) return "text-rose-500"
+  return "text-amber-600"
+}
+
+function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
+  const styles: Record<ConfidenceLevel, { cls: string; label: string }> = {
+    学習中: { cls: "text-stone-400 bg-stone-100", label: "学習中" },
+    そこそこ: { cls: "text-teal-600 bg-teal-50", label: "そこそこ" },
+    高め: { cls: "text-teal-700 bg-teal-100", label: "精度 高め" },
+  }
+  const { cls, label } = styles[level]
+  return (
+    <span className={`rounded-full px-2.5 py-0.5 text-xs font-medium ${cls}`}>
+      {label}
+    </span>
+  )
+}
+
+// Left = 買い物リストへ (amber), Right = まだ大丈夫 (teal)
+const LEFT_CFG = SWIPE_ACTIONS.toBuyList
+const RIGHT_CFG = SWIPE_ACTIONS.toStillOk
+
+import { LayersIcon } from "./icons"
+
 export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
   const [popupItemId, setPopupItemId] = useState<string | null>(null)
 
-  const [optimisticItems, removeItem] = useOptimistic(
+  type HomeAction = { type: "remove"; id: string } | { type: "addBack"; item: HomeItem }
+
+  const [optimisticItems, dispatchOptimistic] = useOptimistic(
     items,
-    (state: HomeItem[], id: string) => state.filter((i) => i.id !== id)
+    (state: HomeItem[], action: HomeAction) => {
+      if (action.type === "remove") return state.filter((i) => i.id !== action.id)
+      return state.some((i) => i.id === action.item.id) ? state : [...state, action.item]
+    }
   )
 
   const popupItem = popupItemId ? items.find((i) => i.id === popupItemId) : null
 
   function handleSwipeLeft(itemId: string) {
-    const name = items.find((i) => i.id === itemId)?.name ?? ""
+    const originalItem = items.find((i) => i.id === itemId)
+    if (!originalItem) return
     startTransition(async () => {
-      removeItem(itemId)
+      dispatchOptimistic({ type: "remove", id: itemId })
       const result = await recordReport(itemId, "soon")
       if ("id" in result) {
         onShowUndo({
-          message: name ? `「${name}」を買い物リストへ移動` : "買い物リストへ移動しました",
+          message: `「${originalItem.name}」を買い物リストへ移動`,
           onUndo: async () => {
             const res = await undoReport(result.id)
             if ("error" in res) throw new Error(res.error)
           },
+          onUndoOptimistic: () => dispatchOptimistic({ type: "addBack", item: originalItem }),
         })
       }
     })
@@ -59,18 +102,20 @@ export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
   function handleStockLevelSelect(stockLevel: StockLevel) {
     if (!popupItemId) return
     const id = popupItemId
-    const name = items.find((i) => i.id === id)?.name ?? ""
+    const originalItem = items.find((i) => i.id === id)
     setPopupItemId(null)
+    if (!originalItem) return
     startTransition(async () => {
-      removeItem(id)
+      dispatchOptimistic({ type: "remove", id })
       const result = await recordReport(id, "still", stockLevel)
       if ("id" in result) {
         onShowUndo({
-          message: name ? `「${name}」をまだ大丈夫へ移動` : "まだ大丈夫へ移動しました",
+          message: `「${originalItem.name}」をまだ大丈夫へ移動`,
           onUndo: async () => {
             const res = await undoReport(result.id)
             if ("error" in res) throw new Error(res.error)
           },
+          onUndoOptimistic: () => dispatchOptimistic({ type: "addBack", item: originalItem }),
         })
       }
     })
@@ -99,10 +144,34 @@ export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
         {optimisticItems.map((item) => (
           <SwipeCard
             key={item.id}
-            item={item}
+            leftConfig={LEFT_CFG}
+            rightConfig={RIGHT_CFG}
             onSwipeLeft={() => handleSwipeLeft(item.id)}
             onSwipeRight={() => handleRightSwipe(item.id)}
-          />
+          >
+            <div className="flex items-start justify-between gap-2 mb-3">
+              <div className="min-w-0">
+                {item.category && (
+                  <p className="text-xs text-stone-400 mb-0.5">{item.category}</p>
+                )}
+                <h2 className="text-lg font-semibold text-stone-900 truncate">{item.name}</h2>
+              </div>
+              <ConfidenceBadge level={item.prediction.confidence} />
+            </div>
+            <p className={`text-base font-semibold ${urgencyColor(item.prediction.daysRemaining)}`}>
+              {daysLabel(item.prediction.daysRemaining)}
+            </p>
+            <div className="mt-4 flex items-center justify-between text-xs text-stone-300 select-none">
+              <span className="flex items-center gap-1">
+                <ShoppingCartIcon size={12} />
+                {LEFT_CFG.hintLeft}
+              </span>
+              <span className="flex items-center gap-1">
+                {RIGHT_CFG.hintRight}
+                <CheckIcon size={12} />
+              </span>
+            </div>
+          </SwipeCard>
         ))}
       </div>
 

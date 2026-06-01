@@ -1,10 +1,12 @@
 "use client"
 
+import { startTransition } from "react"
 import { createPortal } from "react-dom"
 
 export interface UndoConfig {
   message: string
   onUndo?: () => Promise<void>
+  onUndoOptimistic?: () => void
 }
 
 interface UndoToastProps extends UndoConfig {
@@ -12,14 +14,17 @@ interface UndoToastProps extends UndoConfig {
   onUndoError: (msg: string) => void
 }
 
-export default function UndoToast({ message, onUndo, onDismiss, onUndoError }: UndoToastProps) {
-  async function handleUndo() {
+export default function UndoToast({ message, onUndo, onUndoOptimistic, onDismiss, onUndoError }: UndoToastProps) {
+  function handleUndo() {
     onDismiss()
-    try {
-      await onUndo!()
-    } catch (e) {
-      onUndoError(e instanceof Error ? e.message : "取消に失敗しました")
-    }
+    startTransition(async () => {
+      onUndoOptimistic?.()
+      try {
+        await onUndo!()
+      } catch (e) {
+        onUndoError(e instanceof Error ? e.message : "取消に失敗しました")
+      }
+    })
   }
 
   return createPortal(

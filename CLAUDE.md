@@ -39,10 +39,13 @@
   - **左スワイプ → 買い物リストへ**（`reports` に `soon`）→ Undo トースト5秒表示。
   - **右スワイプ → 3択ポップアップ**（たくさんある/ふつう/きれそう）→ `reports` に `still` + `stock_level`。「まだ大丈夫」へ → Undo トースト。
   - 右で「きれそう（`low`）」を選んだものは、**買い物リスト下部に「提案」として薄く表示**。
-- **買い物リスト（左）**：買うと確定したもの。「買った」を押すと `purchases` に記録 → Undo トースト。提案行の「追加」も Undo 可能。
+- **買い物リスト（左）**：買うと確定したもの。「買った」ボタン（詳細入力）または**左スワイプ（即購入、normalのデフォルト）** → `purchases` に記録 → Undo トースト。右スワイプ=削除（段階3で実装予定、現状はプレビューのみ）。提案行の「追加」も Undo 可能。
 - **まだ大丈夫（右）**：手元にある所持品一覧。各カードに次に切れそうな日と精度バッジ（学習中/そこそこ/高め）。
+  - **左スワイプ →「そろそろ」（まだある？へ）**：`still` レポートを削除→予測ベースで再分類。`lastReportId` がある品目のみ。Undo 可能。
+  - **右スワイプ →「買い物リストへ」**：`reports` に `soon` 記録 → Undo トースト。
   - 「買った」ボタン → `purchases` 記録 → Undo トースト。
   - 各カード右上のゴミ箱ボタン → 確認ダイアログ → 品目削除（`deleteItem` server action。CASCADE で purchases / reports も一括削除）。削除は Undo 不可。
+- **スワイプ方向プレビュー（Tinder式）**：ドラッグ中、カード上に操作名バッジを表示。しきい値（`SWIPE_THRESHOLD = 72px`）未満は淡く、超えたら色濃く強調。カードが微妙に傾く（最大3°）。設定は `lib/swipe-config.ts` に集約。
 - **Undo トースト**：操作後5秒間、画面下部（safe-area-inset-bottom 考慮）に「元に戻す」ボタン付きで表示。取消 action（`undoReport` / `undoPurchase`）でその操作の挿入行を1件削除。ユーザー所有チェック必須。スキーマ変更なし。
 - **ポップアップ共通**：BuyModal / StockLevelPopup / 削除確認ダイアログ / UndoToast はすべて `createPortal(…, document.body)` で描画。TabShell のタブコンテナに `transform` があり `fixed` の基準がずれるため、必ず portal を使うこと。
 

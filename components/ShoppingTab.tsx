@@ -1,11 +1,13 @@
 "use client"
 
-import BuyModal from "./BuyModal"
-import { recordReport, undoReport, undoPurchase } from "@/app/actions"
-import { ShoppingCartIcon, ChevronRightIcon } from "./icons"
 import { startTransition, useOptimistic } from "react"
+import SwipeCard from "./SwipeCard"
+import BuyModal from "./BuyModal"
+import { recordReport, recordPurchase, undoReport, undoPurchase } from "@/app/actions"
+import { ShoppingCartIcon, ChevronRightIcon, TrashIcon } from "./icons"
 import type { ConfidenceLevel } from "@/lib/prediction"
 import type { UndoConfig } from "./UndoToast"
+import { SWIPE_ACTIONS } from "@/lib/swipe-config"
 
 export interface ShoppingItem {
   id: string
@@ -37,29 +39,72 @@ function daysHint(days: number | null) {
   return `あと約 ${days}日`
 }
 
+function todayString() {
+  const d = new Date()
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
+}
+
+// Left = 買った (teal), Right = 削除 (rose, stage-3 action — preview only)
+const LEFT_CFG = SWIPE_ACTIONS.bought
+const RIGHT_CFG = SWIPE_ACTIONS.deleteItem
+
 export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTabProps) {
-  const [optimisticSuggested, removeSuggested] = useOptimistic(
+  type SuggestedAction = { type: "remove"; id: string } | { type: "addBack"; item: SuggestedItem }
+
+  const [optimisticSuggested, dispatchSuggested] = useOptimistic(
     suggested,
-    (state: SuggestedItem[], id: string) => state.filter((i) => i.id !== id)
+    (state: SuggestedItem[], action: SuggestedAction) => {
+      if (action.type === "remove") return state.filter((i) => i.id !== action.id)
+      return state.some((i) => i.id === action.item.id) ? state : [...state, action.item]
+    }
   )
 
-  function handleAddSuggested(itemId: string, itemName: string) {
+  type ShoppingAction = { type: "remove"; id: string } | { type: "addBack"; item: ShoppingItem }
+
+  const [optimisticItems, dispatchItems] = useOptimistic(
+    items,
+    (state: ShoppingItem[], action: ShoppingAction) => {
+      if (action.type === "remove") return state.filter((i) => i.id !== action.id)
+      return state.some((i) => i.id === action.item.id) ? state : [...state, action.item]
+    }
+  )
+
+  // Left swipe: quick buy (normal qty, today) — no modal
+  function handleSwipeLeft(item: ShoppingItem) {
     startTransition(async () => {
-      removeSuggested(itemId)
-      const result = await recordReport(itemId, "soon")
+      dispatchItems({ type: "remove", id: item.id })
+      const result = await recordPurchase(item.id, "normal", todayString())
       if ("id" in result) {
         onShowUndo({
-          message: `「${itemName}」を買い物リストへ追加`,
+          message: `「${item.name}」の購入を記録しました`,
           onUndo: async () => {
-            const res = await undoReport(result.id)
+            const res = await undoPurchase(result.id)
             if ("error" in res) throw new Error(res.error)
           },
+          onUndoOptimistic: () => dispatchItems({ type: "addBack", item }),
         })
       }
     })
   }
 
-  const isEmpty = items.length === 0 && optimisticSuggested.length === 0
+  function handleAddSuggested(suggestedItem: SuggestedItem) {
+    startTransition(async () => {
+      dispatchSuggested({ type: "remove", id: suggestedItem.id })
+      const result = await recordReport(suggestedItem.id, "soon")
+      if ("id" in result) {
+        onShowUndo({
+          message: `「${suggestedItem.name}」を買い物リストへ追加`,
+          onUndo: async () => {
+            const res = await undoReport(result.id)
+            if ("error" in res) throw new Error(res.error)
+          },
+          onUndoOptimistic: () => dispatchSuggested({ type: "addBack", item: suggestedItem }),
+        })
+      }
+    })
+  }
+
+  const isEmpty = optimisticItems.length === 0 && optimisticSuggested.length === 0
 
   if (isEmpty) {
     return (
@@ -77,20 +122,24 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
 
   return (
     <div className="px-4 pt-4 pb-6 space-y-6">
-      {items.length > 0 && (
+      {optimisticItems.length > 0 && (
         <section>
           <p className="text-xs font-medium text-stone-400 uppercase tracking-wider px-1 mb-3">
-            買う — {items.length}件
+            買う — {optimisticItems.length}件
           </p>
           <div className="space-y-3">
-            {items.map((item) => (
-              <div
+            {optimisticItems.map((item) => (
+              <SwipeCard
                 key={item.id}
-                className={`rounded-2xl border px-5 py-4 shadow-sm ${
+                leftConfig={LEFT_CFG}
+                rightConfig={RIGHT_CFG}
+                onSwipeLeft={() => handleSwipeLeft(item)}
+                // Right swipe (削除) preview only in stage 2 — no onSwipeRight
+                cardClassName={
                   item.lastReportKind === "out"
-                    ? "border-rose-200 bg-rose-50"
-                    : "border-amber-200 bg-amber-50"
-                }`}
+                    ? "rounded-2xl border border-rose-200 bg-rose-50 shadow-sm"
+                    : "rounded-2xl border border-amber-200 bg-amber-50 shadow-sm"
+                }
               >
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -114,11 +163,22 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
                           const res = await undoPurchase(purchaseId)
                           if ("error" in res) throw new Error(res.error)
                         },
+                        onUndoOptimistic: () => dispatchItems({ type: "addBack", item }),
                       })
                     }
                   />
                 </div>
-              </div>
+                {/* Swipe hint */}
+                <div className="mt-3 flex items-center justify-between text-xs text-stone-400 select-none">
+                  <span className="flex items-center gap-1">
+                    ← {LEFT_CFG.label}
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <TrashIcon size={11} />
+                    {RIGHT_CFG.label}（準備中）
+                  </span>
+                </div>
+              </SwipeCard>
             ))}
           </div>
         </section>
@@ -145,7 +205,7 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
                   </p>
                 </div>
                 <button
-                  onClick={() => handleAddSuggested(item.id, item.name)}
+                  onClick={() => handleAddSuggested(item)}
                   className="shrink-0 flex items-center gap-1 rounded-xl bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-200 transition-colors active:scale-95"
                 >
                   追加

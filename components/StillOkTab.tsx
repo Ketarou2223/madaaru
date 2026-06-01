@@ -2,11 +2,16 @@
 
 import { useState, useOptimistic, startTransition } from "react"
 import { createPortal } from "react-dom"
+import SwipeCard from "./SwipeCard"
 import BuyModal from "./BuyModal"
-import { PackageIcon, CalendarIcon, LeafIcon, TrendingUpIcon, TargetIcon, TrashIcon } from "./icons"
+import {
+  PackageIcon, CalendarIcon, LeafIcon, TrendingUpIcon,
+  TargetIcon, TrashIcon, ShoppingCartIcon,
+} from "./icons"
 import type { ConfidenceLevel } from "@/lib/prediction"
 import type { UndoConfig } from "./UndoToast"
-import { deleteItem, undoPurchase } from "@/app/actions"
+import { deleteItem, undoPurchase, undoReport, recordReport } from "@/app/actions"
+import { SWIPE_ACTIONS } from "@/lib/swipe-config"
 
 export interface StillOkItem {
   id: string
@@ -18,6 +23,7 @@ export interface StillOkItem {
     confidence: ConfidenceLevel
   }
   lastStockLevel: "plenty" | "normal" | "low" | null
+  lastReportId: string | null   // ID of the still report; null for prediction-only items
 }
 
 function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
@@ -75,6 +81,10 @@ function stockLevelDot(level: "plenty" | "normal" | "low" | null) {
   )
 }
 
+// Left = そろそろ (amber), Right = 買い物リストへ (amber)
+const LEFT_CFG = SWIPE_ACTIONS.sorosoro
+const RIGHT_CFG = SWIPE_ACTIONS.toBuyList
+
 interface StillOkTabProps {
   items: StillOkItem[]
   onShowUndo: (config: UndoConfig) => void
@@ -83,9 +93,14 @@ interface StillOkTabProps {
 export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
-  const [optimisticItems, removeOptimistic] = useOptimistic(
+  type StillOkAction = { type: "remove"; id: string } | { type: "addBack"; item: StillOkItem }
+
+  const [optimisticItems, dispatchOptimistic] = useOptimistic(
     items,
-    (state: StillOkItem[], id: string) => state.filter((i) => i.id !== id)
+    (state: StillOkItem[], action: StillOkAction) => {
+      if (action.type === "remove") return state.filter((i) => i.id !== action.id)
+      return state.some((i) => i.id === action.item.id) ? state : [...state, action.item]
+    }
   )
 
   function handleDeleteConfirm() {
@@ -93,8 +108,48 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
     const id = deleteConfirmId
     setDeleteConfirmId(null)
     startTransition(async () => {
-      removeOptimistic(id)
+      dispatchOptimistic({ type: "remove", id })
       await deleteItem(id)
+    })
+  }
+
+  // Left swipe: "そろそろ（まだある？へ）"
+  // Undoes the 'still' report so the item falls back to prediction-based classification.
+  // Only available for items that have a still report (lastReportId !== null).
+  function handleSwipeLeft(item: StillOkItem) {
+    if (!item.lastReportId) return
+    const reportId = item.lastReportId
+    startTransition(async () => {
+      dispatchOptimistic({ type: "remove", id: item.id })
+      const result = await undoReport(reportId)
+      if ("success" in result) {
+        onShowUndo({
+          message: `「${item.name}」をまだある？へ移動`,
+          onUndo: async () => {
+            const res = await recordReport(item.id, "still", item.lastStockLevel ?? undefined)
+            if ("error" in res) throw new Error(res.error)
+          },
+          onUndoOptimistic: () => dispatchOptimistic({ type: "addBack", item }),
+        })
+      }
+    })
+  }
+
+  // Right swipe: "買い物リストへ"
+  function handleSwipeRight(item: StillOkItem) {
+    startTransition(async () => {
+      dispatchOptimistic({ type: "remove", id: item.id })
+      const result = await recordReport(item.id, "soon")
+      if ("id" in result) {
+        onShowUndo({
+          message: `「${item.name}」を買い物リストへ移動`,
+          onUndo: async () => {
+            const res = await undoReport(result.id)
+            if ("error" in res) throw new Error(res.error)
+          },
+          onUndoOptimistic: () => dispatchOptimistic({ type: "addBack", item }),
+        })
+      }
     })
   }
 
@@ -124,9 +179,12 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
         </p>
         <div className="space-y-3">
           {optimisticItems.map((item) => (
-            <div
+            <SwipeCard
               key={item.id}
-              className="rounded-2xl border border-stone-200 bg-white px-5 py-4 shadow-sm"
+              leftConfig={LEFT_CFG}
+              rightConfig={RIGHT_CFG}
+              onSwipeLeft={item.lastReportId ? () => handleSwipeLeft(item) : undefined}
+              onSwipeRight={() => handleSwipeRight(item)}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="min-w-0 flex-1">
@@ -160,18 +218,19 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
                   </span>
                 </div>
                 <BuyModal
-                itemId={item.id}
-                itemName={item.name}
-                onSuccess={(purchaseId) =>
-                  onShowUndo({
-                    message: `「${item.name}」の購入を記録しました`,
-                    onUndo: async () => {
-                      const res = await undoPurchase(purchaseId)
-                      if ("error" in res) throw new Error(res.error)
-                    },
-                  })
-                }
-              />
+                  itemId={item.id}
+                  itemName={item.name}
+                  onSuccess={(purchaseId) =>
+                    onShowUndo({
+                      message: `「${item.name}」の購入を記録しました`,
+                      onUndo: async () => {
+                        const res = await undoPurchase(purchaseId)
+                        if ("error" in res) throw new Error(res.error)
+                      },
+                      onUndoOptimistic: () => dispatchOptimistic({ type: "addBack", item }),
+                    })
+                  }
+                />
               </div>
 
               {item.prediction.nextDepleteDate && (
@@ -179,7 +238,22 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
                   {nextDateLabel(item.prediction.nextDepleteDate)} ごろ
                 </p>
               )}
-            </div>
+
+              {/* Swipe hint */}
+              <div className="mt-3 flex items-center justify-between text-xs text-stone-300 select-none">
+                {item.lastReportId ? (
+                  <span className="flex items-center gap-1">
+                    ← {LEFT_CFG.hintLeft.replace("← ", "")}
+                  </span>
+                ) : (
+                  <span />
+                )}
+                <span className="flex items-center gap-1">
+                  <ShoppingCartIcon size={12} />
+                  {RIGHT_CFG.label} →
+                </span>
+              </div>
+            </SwipeCard>
           ))}
         </div>
       </div>

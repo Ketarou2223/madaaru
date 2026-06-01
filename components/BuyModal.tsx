@@ -80,7 +80,7 @@ export default function BuyModal({ itemId, itemName, onSuccess }: BuyModalProps)
               </button>
             </div>
 
-            <p className="text-sm font-medium text-stone-500 mb-2">量はどのくらい？</p>
+            <p className="text-sm font-medium text-stone-500 mb-2">どれくらい買った？</p>
             <div className="grid grid-cols-3 gap-2 mb-5">
               {QTY_OPTIONS.map((opt) => (
                 <button
