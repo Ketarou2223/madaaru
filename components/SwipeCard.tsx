@@ -26,11 +26,14 @@ export default function SwipeCard({
   const startY = useRef(0)
   const dragDir = useRef<"h" | "v" | null>(null)
   const dragXRef = useRef(0)
+  const exitingRef = useRef(false) // guard: prevent double-fire during fly-out
 
   const [dragX, setDragX] = useState(0)
-  const [dismissed, setDismissed] = useState<"left" | "right" | null>(null)
+  const [isExiting, setIsExiting] = useState(false)
+  const exitDirRef = useRef<"left" | "right" | null>(null)
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
+    if (exitingRef.current) return
     e.stopPropagation()
     startX.current = e.touches[0].clientX
     startY.current = e.touches[0].clientY
@@ -39,6 +42,7 @@ export default function SwipeCard({
   }, [])
 
   const handleTouchMove = useCallback((e: TouchEvent) => {
+    if (exitingRef.current) return
     e.stopPropagation()
     const dx = e.touches[0].clientX - startX.current
     const dy = e.touches[0].clientY - startY.current
@@ -57,18 +61,30 @@ export default function SwipeCard({
   }, [])
 
   const handleTouchEnd = useCallback(() => {
+    if (exitingRef.current) return
     const dx = dragXRef.current
-    if (dragDir.current === "h") {
-      if (dx < -SWIPE_THRESHOLD && onSwipeLeft) {
-        setDismissed("left")
-      } else if (dx > SWIPE_THRESHOLD && onSwipeRight) {
-        setDismissed("right")
-      } else {
-        setDragX(0)
-      }
-    }
+    const wasHorizontal = dragDir.current === "h"
     dragXRef.current = 0
     dragDir.current = null
+
+    if (!wasHorizontal) return
+
+    if (dx < -SWIPE_THRESHOLD && onSwipeLeft) {
+      // Confirmed left: fly off from current position — don't reset dragX to 0
+      exitingRef.current = true
+      exitDirRef.current = "left"
+      setIsExiting(true)
+      setDragX(-1500)
+    } else if (dx > SWIPE_THRESHOLD && onSwipeRight) {
+      // Confirmed right: fly off from current position
+      exitingRef.current = true
+      exitDirRef.current = "right"
+      setIsExiting(true)
+      setDragX(1500)
+    } else {
+      // Cancelled: snap back to center
+      setDragX(0)
+    }
   }, [onSwipeLeft, onSwipeRight])
 
   useEffect(() => {
@@ -84,16 +100,16 @@ export default function SwipeCard({
     }
   }, [handleTouchStart, handleTouchMove, handleTouchEnd])
 
+  // Fire callback after fly-out animation completes
   useEffect(() => {
-    if (dismissed === "left") {
-      const t = setTimeout(() => onSwipeLeft?.(), 280)
-      return () => clearTimeout(t)
-    }
-    if (dismissed === "right") {
-      const t = setTimeout(() => onSwipeRight?.(), 280)
-      return () => clearTimeout(t)
-    }
-  }, [dismissed, onSwipeLeft, onSwipeRight])
+    if (!isExiting) return
+    const dir = exitDirRef.current
+    const t = setTimeout(() => {
+      if (dir === "left") onSwipeLeft?.()
+      else onSwipeRight?.()
+    }, 280)
+    return () => clearTimeout(t)
+  }, [isExiting, onSwipeLeft, onSwipeRight])
 
   const absDx = Math.abs(dragX)
   const dragProgress = Math.min(absDx / SWIPE_THRESHOLD, 1) // 0→1
@@ -109,31 +125,24 @@ export default function SwipeCard({
   const tintOpacity = dragProgress * 0.25
 
   // Card rotation: ±3° at threshold for lifted-card feel
-  const rotation = dismissed
-    ? 0
-    : Math.sign(dragX) * Math.min((absDx / SWIPE_THRESHOLD) * 3, 3)
+  const rotation = Math.sign(dragX) * Math.min((absDx / SWIPE_THRESHOLD) * 3, 3)
 
   const cfg = isLeft ? leftConfig : rightConfig
 
   return (
     <div
       ref={cardRef}
-      className={`relative select-none touch-pan-y ${
-        dismissed === "left"
-          ? "animate-swipe-out-left"
-          : dismissed === "right"
-          ? "animate-swipe-out-right"
-          : ""
-      }`}
-      style={
-        dismissed
-          ? {}
-          : {
-              transform: `translateX(${dragX}px) rotate(${rotation}deg)`,
-              transition: dragX === 0 ? "transform 0.25s ease" : "none",
-              willChange: "transform",
-            }
-      }
+      className="relative select-none touch-pan-y"
+      style={{
+        transform: `translateX(${dragX}px) rotate(${rotation}deg)`,
+        // During drag: no transition (follows finger). Exit or snap-back: animate.
+        transition: isExiting
+          ? "transform 0.28s ease-in"
+          : dragX === 0
+          ? "transform 0.25s ease"
+          : "none",
+        willChange: "transform",
+      }}
     >
       {/* Tinder-style action badge — only shown when that direction's handler is enabled */}
       {isLeft && !!onSwipeLeft && (
