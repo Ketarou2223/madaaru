@@ -44,8 +44,16 @@
   - 起動時 `physicalIdx=2`（home）。clone位置(0/4)に到達したら `onTransitionEnd` でジャンプ（transition一瞬無効）。
   - 論理タブIDで管理（`PHYSICAL_LOGICAL` 配列）。インデックス依存なし。
   - **インデックス変更は必ず `goToPhysical(n)` 経由**。`physicalIdxRef.current` をステートより先に同期更新し [0,4] にクランプ。`setPhysicalIdx` を直接呼ばないこと（高速連打で白画面になる）。
-  - **パネルとタブバーの完全統合トラック方式**：各スロットは `flex-col`（パネルコンテンツ + そのスロットのタブバー）。strip の `translateX` が両者をまるごと動かすため、別管理・別同期は一切ない。タブバーが transform コンテナ内に入るため `backdrop-blur` は `bg-white`（実色）を使うこと。
-  - **タッチ検知は `outerRef`（flex-1 コンテナ）に設置**：タブバー領域の判定は Y 座標チェック `touchY >= window.innerHeight - 56`（h-14）で行う。SwipeCard の native `stopPropagation` がカードタッチを遮断し、Y チェックが第2の防衛線になる。
+  - **中央固定マーカー＋並び流動方式**（段階3-A修正③作り直し）：パネルとタブアイテム並びを完全分離した2トラック構成。
+    - **パネルトラック**：5スロット × 100vw、`translateX = -physicalIdx×20% + dragOffset`（変更なし）。各スロットはパネルコンテンツのみ（タブバー要素を持たない）。
+    - **タブアイテムトラック**：5アイテム × 33.333vw（`ITEM_VW = 100/3`）、`translateX = calc((1−physicalIdx)×ITEM_VW vw + dragOffset/3 px)`。パネルの1/3速で動く（パネル1スロット=100vw に対してタブ1アイテム=33.333vw）。
+    - **中央固定マーカー**：タブバーコンテナ内に `position: absolute, left: ITEM_VW vw, width: ITEM_VW vw, pointer-events-none` で配置。どの transform にも乗らないため動かない。teal の天頂ラインで現在位置を表示。
+    - **静止時の見え方**：3アイテム（左1/3=隣タブ、中1/3=現在タブ、右1/3=反対隣）が画面いっぱいに並ぶ。中央アイテムがマーカーと一致する。
+    - **スワイプ中**：タブアイテムがマーカー下を1/3速で流れ、地図アプリの「ピン固定・地図スクロール」と同じ感覚になる。
+    - 両トラックは同じ `isJumping` フラグで transition を制御。クローンジャンプは `handlePanelTransitionEnd` のみが起点（タブトラックは physicalIdx 更新で自動追従）。
+    - タブバーが static 要素のため `bg-white`（実色）を維持。
+  - **タッチ検知は `tabBarRef`（タブバーコンテナ）に直接設置**：タブバー要素にリスナーを付けるため Y座標チェック不要。SwipeCard の native `stopPropagation` がカードタッチを遮断（第1防衛線）。`isTabBarZone` ref も不要。
+  - **`SlotTabBar` コンポーネントは廃止**：タブアイテムはタブバートラック内にインラインでレンダリング。
 
 ### ジェスチャ領域の分離（重要）
 
