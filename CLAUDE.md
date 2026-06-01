@@ -43,6 +43,9 @@
   - 実装：物理5パネル方式 `[stillok_clone | shopping | home | stillok | shopping_clone]`。
   - 起動時 `physicalIdx=2`（home）。clone位置(0/4)に到達したら `onTransitionEnd` でジャンプ（transition一瞬無効）。
   - 論理タブIDで管理（`PHYSICAL_LOGICAL` 配列）。インデックス依存なし。
+  - **インデックス変更は必ず `goToPhysical(n)` 経由**。`physicalIdxRef.current` をステートより先に同期更新し [0,4] にクランプ。`setPhysicalIdx` を直接呼ばないこと（高速連打で白画面になる）。
+  - **パネルとタブバーの完全統合トラック方式**：各スロットは `flex-col`（パネルコンテンツ + そのスロットのタブバー）。strip の `translateX` が両者をまるごと動かすため、別管理・別同期は一切ない。タブバーが transform コンテナ内に入るため `backdrop-blur` は `bg-white`（実色）を使うこと。
+  - **タッチ検知は `outerRef`（flex-1 コンテナ）に設置**：タブバー領域の判定は Y 座標チェック `touchY >= window.innerHeight - 56`（h-14）で行う。SwipeCard の native `stopPropagation` がカードタッチを遮断し、Y チェックが第2の防衛線になる。
 
 ### ジェスチャ領域の分離（重要）
 

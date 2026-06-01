@@ -29,7 +29,7 @@ export default function RootLayout({
         <link rel="apple-touch-icon" href="/icon.svg" />
         <meta name="mobile-web-app-capable" content="yes" />
       </head>
-      <body className="min-h-full antialiased">
+      <body className="h-full overflow-hidden antialiased">
         {children}
         <SwRegistration />
       </body>
