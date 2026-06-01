@@ -5,6 +5,8 @@ import HomeTab from "./HomeTab"
 import ShoppingTab from "./ShoppingTab"
 import StillOkTab from "./StillOkTab"
 import AddItemModal from "./AddItemModal"
+import UndoToast from "./UndoToast"
+import type { UndoConfig } from "./UndoToast"
 import { ShoppingCartIcon, LayersIcon, PackageIcon, LogOutIcon } from "./icons"
 import { signOutAction } from "@/app/actions"
 import type { HomeItem } from "./HomeTab"
@@ -36,13 +38,35 @@ export default function TabShell({
 }: TabShellProps) {
   const [activeTab, setActiveTab] = useState(1) // 1 = home (center)
   const [dragOffset, setDragOffset] = useState(0)
+  const [undoConfig, setUndoConfig] = useState<UndoConfig | null>(null)
 
+  const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const startXRef = useRef(0)
   const startYRef = useRef(0)
   const dragDirRef = useRef<"h" | "v" | null>(null)
   const dragOffsetRef = useRef(0)
   const isDraggingRef = useRef(false)
+
+  function showUndo(config: UndoConfig) {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    setUndoConfig(config)
+    undoTimerRef.current = setTimeout(() => {
+      setUndoConfig(null)
+      undoTimerRef.current = null
+    }, 5000)
+  }
+
+  function dismissUndo() {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+    undoTimerRef.current = null
+    setUndoConfig(null)
+  }
+
+  // Clean up timer on unmount
+  useEffect(() => () => {
+    if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
+  }, [])
 
   const handleTouchStart = useCallback((e: TouchEvent) => {
     startXRef.current = e.touches[0].clientX
@@ -166,22 +190,30 @@ export default function TabShell({
         >
           {/* Tab 0: Shopping */}
           <div className="h-full overflow-y-auto" style={{ width: "33.333%" }}>
-            <ShoppingTab items={shoppingItems} suggested={suggestedItems} />
+            <ShoppingTab items={shoppingItems} suggested={suggestedItems} onShowUndo={showUndo} />
           </div>
 
           {/* Tab 1: Home */}
           <div className="h-full overflow-y-auto" style={{ width: "33.333%" }}>
-            <HomeTab items={homeItems} />
+            <HomeTab items={homeItems} onShowUndo={showUndo} />
           </div>
 
           {/* Tab 2: StillOk */}
           <div className="h-full overflow-y-auto" style={{ width: "33.333%" }}>
-            <StillOkTab items={stillOkItems} />
+            <StillOkTab items={stillOkItems} onShowUndo={showUndo} />
           </div>
         </div>
       </div>
 
       <AddItemModal />
+
+      {undoConfig && (
+        <UndoToast
+          message={undoConfig.message}
+          onUndo={undoConfig.onUndo}
+          onDismiss={dismissUndo}
+        />
+      )}
     </div>
   )
 }

@@ -1,5 +1,6 @@
 "use client"
 
+import { createPortal } from "react-dom"
 import type { StockLevel } from "@/lib/db/schema"
 
 interface StockLevelPopupProps {
@@ -15,14 +16,21 @@ const OPTIONS: { level: StockLevel; label: string; desc: string; accent: string 
 ]
 
 export default function StockLevelPopup({ itemName, onSelect, onCancel }: StockLevelPopupProps) {
-  return (
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-end justify-center animate-fade-in"
       style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
       onClick={(e) => e.target === e.currentTarget && onCancel()}
     >
-      <div className="animate-slide-up w-full max-w-lg bg-white rounded-t-3xl px-6 pb-10 pt-5 shadow-2xl">
-        {/* Handle */}
+      <div
+        className="animate-slide-up bg-white rounded-t-3xl px-6 pt-5 shadow-2xl"
+        style={{
+          width: "min(420px, 92vw)",
+          maxHeight: "80vh",
+          overflowY: "auto",
+          paddingBottom: "max(2.5rem, env(safe-area-inset-bottom))",
+        }}
+      >
         <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-stone-200" />
 
         <p className="text-xs font-medium text-stone-400 uppercase tracking-wider mb-1">まだ大丈夫へ</p>
@@ -54,6 +62,7 @@ export default function StockLevelPopup({ itemName, onSelect, onCancel }: StockL
           キャンセル
         </button>
       </div>
-    </div>
+    </div>,
+    document.body
   )
 }

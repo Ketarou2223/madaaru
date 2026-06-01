@@ -1,119 +1,74 @@
-# まだある？ — 消耗品管理アプリ
+# まだある？ — 運用メモ（人間用）
 
-「切らさない」ための最小限のアプリ。量を正確に管理するのではなく、**次にいつ切れるか**を予測して教えてくれます。
+> 自分が後で見返すための実務メモ。「どうやって動かす」「詰まったらどこを見る」をまとめる。
+> 開発の規約はAI用の `CLAUDE.md`、新チャットへの引き継ぎは `HANDOFF.md`。
+> **最終更新：2026-05-31**
 
 ---
 
-## セットアップ手順
+## これは何
 
-### 1. 環境変数ファイルを作成
+消耗品が切れる前に教えてくれるアプリ。本番URL：**https://madaaru.vercel.app**
+スマホで開いて「ホーム画面に追加」するとアプリみたいに使える（PWA）。
 
-```bash
-cp .env.local.example .env.local
-```
+## 構成（ざっくり）
 
-### 2. Neon データベースを作成
+- アプリ本体（画面＋裏の処理）＝ **Vercel** で動いてる。
+- データの保管＝ **Neon**（PostgreSQLデータベース）。
+- ログイン＝ **Google**。
+- コード置き場＝ GitHub（`Ketarou2223/madaaru`）。`git push` するとVercelが自動で再デプロイ。
 
-1. [neon.tech](https://neon.tech) でアカウント作成 → 新しいプロジェクト作成
-2. ダッシュボード左メニュー → **Connection Details** → **Connection string** をコピー
-3. `.env.local` の `DATABASE_URL` に貼り付け
+## 日常の使い方
 
-### 3. Auth.js シークレットを生成
+1. 品目を追加（右下の＋）。
+2. 買ったら「買った」。減ってきたら「まだある？」タブにカードが出る。
+3. カードを**左スワイプ＝買う**／**右スワイプ＝まだ大丈夫**（→ たくさん/ふつう/きれそう を選ぶ）。
+4. 「きれそう」にしたものは買い物リスト下に提案として出る。
 
-```bash
-npx auth secret
-```
-
-出力された値を `.env.local` の `AUTH_SECRET` に貼り付け。
-
-### 4. Google OAuth クライアントを作成
-
-1. [Google Cloud Console](https://console.cloud.google.com/) → **APIs & Services** → **Credentials** → **OAuth client ID を作成**
-2. アプリケーションの種類: **ウェブ アプリケーション**
-3. 以下を設定：
-   - **承認済みの JavaScript 生成元**: `http://localhost:3000`
-   - **承認済みのリダイレクト URI**: `http://localhost:3000/api/auth/callback/google`
-4. **クライアント ID** をコピー → `.env.local` の `AUTH_GOOGLE_ID` に貼り付け
-5. **クライアント シークレット** をコピー → `.env.local` の `AUTH_GOOGLE_SECRET` に貼り付け
-
-### 5. テーブルを作成
+## 開発で触るとき
 
 ```bash
+# 開発サーバを立てる（手元で確認）
+npm run dev          # → http://localhost:3000
+
+# DBの構造を変えたら反映（schema を変えた後だけ）
 npm run db:push
+
+# 本番に反映
+git add .
+git commit -m "変更内容"
+git push             # Vercelが自動でデプロイ
 ```
 
-### 6. ローカル起動
+## 環境変数（4つ）
 
-```bash
-npm run dev
-```
+`.env.local`（手元）と Vercel の Environment Variables（本番）の両方に、同じ値で入っている：
 
-`http://localhost:3000` にアクセスしてログインできれば完了。
+- `DATABASE_URL` … Neonの接続文字列
+- `AUTH_SECRET` … セッション用の秘密鍵
+- `AUTH_GOOGLE_ID` … GoogleのクライアントID
+- `AUTH_GOOGLE_SECRET` … Googleのクライアントシークレット
 
----
+※ `.env.local` は**GitHubに上げない**（`.gitignore`で除外済み）。値はここにも書かない。
 
-## Vercel へのデプロイ
+## 詰まったときの早見表
 
-### 1. Vercel プロジェクト作成 & Neon 連携
+| 症状 | 多い原因 | 見るところ |
+|---|---|---|
+| 本番が全部404 | Vercelの Framework Preset が Other | Vercel → Settings → Build and Deployment → **Next.js**にしてRedeploy |
+| ログインで `redirect_uri_mismatch` | 開いてるドメインのURIがGoogle未登録 | Google Cloud Console → クライアント → リダイレクトURIに `https://(そのドメイン)/api/auth/callback/google` を追加 |
+| db:push が `injected env (0)` | `.env.local` が読めてない/空 | `.env.local` の `DATABASE_URL` 行があるか、`=`前後にスペースが無いか |
+| 右スワイプで残量保存時にエラー | `stock_level`列が未反映 | `npm run db:push` を実行 |
 
-Vercel ダッシュボード → **Add New Project** → GitHub リポジトリを選択
+## Google OAuth に登録済みのリダイレクトURI（3つ）
 
-**または** Neon の Vercel Integration（推奨）:
-- [vercel.com/integrations/neon](https://vercel.com/integrations/neon) から追加すると `DATABASE_URL` が自動設定される
+- `http://localhost:3000/api/auth/callback/google`
+- `https://madaaru-git-main-ketarou2223s-projects.vercel.app/api/auth/callback/google`
+- `https://madaaru.vercel.app/api/auth/callback/google`
 
-### 2. Vercel の環境変数に以下を登録
+→ 新しいドメインでアクセスするなら、その形でURIを追加する。
 
-| キー | 値 |
-|------|-----|
-| `DATABASE_URL` | Neon の接続文字列 |
-| `AUTH_SECRET` | `npx auth secret` で生成した値 |
-| `AUTH_GOOGLE_ID` | Google OAuth クライアント ID |
-| `AUTH_GOOGLE_SECRET` | Google OAuth クライアント シークレット |
+## お金まわり
 
-### 3. Google OAuth のリダイレクト URI を追加
-
-Google Cloud Console → OAuth クライアントの設定 → **承認済みのリダイレクト URI** に追加:
-
-```
-https://your-app.vercel.app/api/auth/callback/google
-```
-
-### 4. デプロイ後にテーブルを作成
-
-Vercel 上の環境変数で `DATABASE_URL` を設定したあと、ローカルから `npm run db:push` を実行すると本番 DB にもテーブルが作成されます。
-
----
-
-## 予測ロジックの調整
-
-`lib/prediction.ts` の `PREDICTION_CONFIG` を編集することで動作を調整できます：
-
-```typescript
-export const PREDICTION_CONFIG = {
-  QTY_COEFFICIENTS: {
-    more: 1.3,    // 多い = 1.3倍長持ち
-    normal: 1.0,  // ふつう = 基準
-    less: 0.7,    // 少なめ = 0.7倍
-  },
-  STILL_CORRECTION_FACTOR: 0.1,     // 「まだある」1回で10%延長
-  STILL_CORRECTION_MAX_FACTOR: 1.5, // 最大50%延長
-}
-```
-
-## PWA アイコンについて
-
-`public/icon.svg` はプレースホルダーです。本番では PNG アイコン（192×192、512×512）に差し替えると iOS での表示が改善されます：
-
-1. `public/icon-192.png` と `public/icon-512.png` を作成
-2. `app/manifest.ts` の icons 配列はすでに参照済みなのでそのままでOK
-
----
-
-## スクリプト一覧
-
-| コマンド | 内容 |
-|----------|------|
-| `npm run dev` | ローカル開発サーバー |
-| `npm run build` | プロダクションビルド |
-| `npm run db:push` | スキーマをDBに反映（マイグレーションなし） |
-| `npm run db:studio` | Drizzle Studio（DB GUI）起動 |
+- Vercel / Neon / Google ともに無料枠で運用中。新規課金しない方針。
+- Neonは無アクセスが続くと自動でスリープ（次アクセスで復帰）。自分用なら問題なし。

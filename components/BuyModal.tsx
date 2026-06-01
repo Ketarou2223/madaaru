@@ -1,6 +1,7 @@
 "use client"
 
 import { useState } from "react"
+import { createPortal } from "react-dom"
 import { recordPurchase } from "@/app/actions"
 import type { QtyTag } from "@/lib/db/schema"
 import { CheckIcon, XIcon } from "./icons"
@@ -16,7 +17,13 @@ const QTY_OPTIONS: { tag: QtyTag; label: string; desc: string }[] = [
   { tag: "less", label: "少なめ", desc: "いつもより少ない" },
 ]
 
-export default function BuyModal({ itemId, itemName }: { itemId: string; itemName: string }) {
+interface BuyModalProps {
+  itemId: string
+  itemName: string
+  onSuccess?: (purchaseId: string) => void
+}
+
+export default function BuyModal({ itemId, itemName, onSuccess }: BuyModalProps) {
   const [open, setOpen] = useState(false)
   const [qty, setQty] = useState<QtyTag>("normal")
   const [date, setDate] = useState(todayString())
@@ -24,11 +31,14 @@ export default function BuyModal({ itemId, itemName }: { itemId: string; itemNam
 
   async function handleSubmit() {
     setLoading(true)
-    await recordPurchase(itemId, qty, date)
+    const result = await recordPurchase(itemId, qty, date)
     setLoading(false)
     setOpen(false)
     setQty("normal")
     setDate(todayString())
+    if ('id' in result) {
+      onSuccess?.(result.id)
+    }
   }
 
   return (
@@ -41,13 +51,20 @@ export default function BuyModal({ itemId, itemName }: { itemId: string; itemNam
         買った
       </button>
 
-      {open && (
+      {open && createPortal(
         <div
           className="fixed inset-0 z-50 flex items-end justify-center animate-fade-in"
           style={{ background: "rgba(0,0,0,0.4)", backdropFilter: "blur(2px)" }}
           onClick={(e) => e.target === e.currentTarget && setOpen(false)}
         >
-          <div className="animate-slide-up w-full max-w-lg bg-white rounded-t-3xl px-6 pb-10 pt-5 shadow-2xl">
+          <div
+            className="animate-slide-up bg-white rounded-t-3xl px-6 pt-5 shadow-2xl overflow-y-auto"
+            style={{
+              width: "min(420px, 92vw)",
+              maxHeight: "80vh",
+              paddingBottom: "max(2.5rem, env(safe-area-inset-bottom))",
+            }}
+          >
             <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-stone-200" />
 
             <div className="flex items-start justify-between mb-5">
@@ -63,7 +80,6 @@ export default function BuyModal({ itemId, itemName }: { itemId: string; itemNam
               </button>
             </div>
 
-            {/* Quantity selection */}
             <p className="text-sm font-medium text-stone-500 mb-2">量はどのくらい？</p>
             <div className="grid grid-cols-3 gap-2 mb-5">
               {QTY_OPTIONS.map((opt) => (
@@ -82,11 +98,8 @@ export default function BuyModal({ itemId, itemName }: { itemId: string; itemNam
               ))}
             </div>
 
-            {/* Date */}
             <div className="mb-6">
-              <label className="mb-1.5 block text-sm font-medium text-stone-500">
-                購入日
-              </label>
+              <label className="mb-1.5 block text-sm font-medium text-stone-500">購入日</label>
               <input
                 type="date"
                 value={date}
@@ -95,7 +108,6 @@ export default function BuyModal({ itemId, itemName }: { itemId: string; itemNam
               />
             </div>
 
-            {/* Actions */}
             <div className="flex gap-3">
               <button
                 onClick={() => setOpen(false)}
@@ -112,7 +124,8 @@ export default function BuyModal({ itemId, itemName }: { itemId: string; itemNam
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body
       )}
     </>
   )

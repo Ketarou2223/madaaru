@@ -8,6 +8,7 @@ import type { QtyTag, ReportKind, StockLevel } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 
 type ActionResult = { error: string } | { success: true }
+type ActionResultWithId = { error: string } | { success: true; id: string }
 
 async function getUserId(): Promise<string | null> {
   const session = await auth()
@@ -45,11 +46,10 @@ export async function recordPurchase(
   itemId: string,
   qtyTag: QtyTag,
   purchasedOn: string // "YYYY-MM-DD"
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   const userId = await getUserId()
   if (!userId) return { error: "ログインが必要です" }
 
-  // Verify the item belongs to this user
   const [item] = await db
     .select()
     .from(items)
@@ -57,22 +57,21 @@ export async function recordPurchase(
 
   if (!item) return { error: "品目が見つかりません" }
 
-  await db.insert(purchases).values({
-    itemId,
-    purchasedOn: new Date(purchasedOn),
-    qtyTag,
-  })
+  const [purchase] = await db
+    .insert(purchases)
+    .values({ itemId, purchasedOn: new Date(purchasedOn), qtyTag })
+    .returning()
 
   revalidatePath("/")
   revalidatePath("/shopping")
-  return { success: true }
+  return { success: true, id: purchase.id }
 }
 
 export async function recordReport(
   itemId: string,
   kind: ReportKind,
   stockLevel?: StockLevel
-): Promise<ActionResult> {
+): Promise<ActionResultWithId> {
   const userId = await getUserId()
   if (!userId) return { error: "ログインが必要です" }
 
@@ -86,12 +85,48 @@ export async function recordReport(
   const today = new Date()
   today.setHours(0, 0, 0, 0)
 
-  await db.insert(reports).values({
-    itemId,
-    reportedOn: today,
-    kind,
-    ...(stockLevel ? { stockLevel } : {}),
-  })
+  const [report] = await db
+    .insert(reports)
+    .values({ itemId, reportedOn: today, kind, ...(stockLevel ? { stockLevel } : {}) })
+    .returning()
+
+  revalidatePath("/")
+  revalidatePath("/shopping")
+  return { success: true, id: report.id }
+}
+
+export async function undoReport(reportId: string): Promise<ActionResult> {
+  const userId = await getUserId()
+  if (!userId) return { error: "ログインが必要です" }
+
+  const [row] = await db
+    .select({ id: reports.id })
+    .from(reports)
+    .innerJoin(items, eq(reports.itemId, items.id))
+    .where(and(eq(reports.id, reportId), eq(items.userId, userId)))
+
+  if (!row) return { error: "見つかりません" }
+
+  await db.delete(reports).where(eq(reports.id, reportId))
+
+  revalidatePath("/")
+  revalidatePath("/shopping")
+  return { success: true }
+}
+
+export async function undoPurchase(purchaseId: string): Promise<ActionResult> {
+  const userId = await getUserId()
+  if (!userId) return { error: "ログインが必要です" }
+
+  const [row] = await db
+    .select({ id: purchases.id })
+    .from(purchases)
+    .innerJoin(items, eq(purchases.itemId, items.id))
+    .where(and(eq(purchases.id, purchaseId), eq(items.userId, userId)))
+
+  if (!row) return { error: "見つかりません" }
+
+  await db.delete(purchases).where(eq(purchases.id, purchaseId))
 
   revalidatePath("/")
   revalidatePath("/shopping")

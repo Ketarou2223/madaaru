@@ -1,10 +1,11 @@
 "use client"
 
 import BuyModal from "./BuyModal"
-import { recordReport } from "@/app/actions"
+import { recordReport, undoReport, undoPurchase } from "@/app/actions"
 import { ShoppingCartIcon, ChevronRightIcon } from "./icons"
 import { startTransition, useOptimistic } from "react"
 import type { ConfidenceLevel } from "@/lib/prediction"
+import type { UndoConfig } from "./UndoToast"
 
 export interface ShoppingItem {
   id: string
@@ -26,6 +27,7 @@ export interface SuggestedItem {
 interface ShoppingTabProps {
   items: ShoppingItem[]
   suggested: SuggestedItem[]
+  onShowUndo: (config: UndoConfig) => void
 }
 
 function daysHint(days: number | null) {
@@ -35,16 +37,22 @@ function daysHint(days: number | null) {
   return `あと約 ${days}日`
 }
 
-export default function ShoppingTab({ items, suggested }: ShoppingTabProps) {
+export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTabProps) {
   const [optimisticSuggested, removeSuggested] = useOptimistic(
     suggested,
     (state: SuggestedItem[], id: string) => state.filter((i) => i.id !== id)
   )
 
-  function handleAddSuggested(itemId: string) {
+  function handleAddSuggested(itemId: string, itemName: string) {
     startTransition(async () => {
       removeSuggested(itemId)
-      await recordReport(itemId, "soon")
+      const result = await recordReport(itemId, "soon")
+      if ("id" in result) {
+        onShowUndo({
+          message: `「${itemName}」を買い物リストへ追加`,
+          onUndo: async () => { await undoReport(result.id) },
+        })
+      }
     })
   }
 
@@ -66,7 +74,6 @@ export default function ShoppingTab({ items, suggested }: ShoppingTabProps) {
 
   return (
     <div className="px-4 pt-4 pb-6 space-y-6">
-      {/* Main shopping list */}
       {items.length > 0 && (
         <section>
           <p className="text-xs font-medium text-stone-400 uppercase tracking-wider px-1 mb-3">
@@ -94,7 +101,16 @@ export default function ShoppingTab({ items, suggested }: ShoppingTabProps) {
                       {item.lastReportKind === "out" ? "切れた" : "そろそろ切れる"}
                     </p>
                   </div>
-                  <BuyModal itemId={item.id} itemName={item.name} />
+                  <BuyModal
+                    itemId={item.id}
+                    itemName={item.name}
+                    onSuccess={(purchaseId) =>
+                      onShowUndo({
+                        message: `「${item.name}」の購入を記録しました`,
+                        onUndo: async () => { await undoPurchase(purchaseId) },
+                      })
+                    }
+                  />
                 </div>
               </div>
             ))}
@@ -102,7 +118,6 @@ export default function ShoppingTab({ items, suggested }: ShoppingTabProps) {
         </section>
       )}
 
-      {/* Suggested items (きれそうでまだ大丈夫にしたもの) */}
       {optimisticSuggested.length > 0 && (
         <section>
           <p className="text-xs font-medium text-stone-400 uppercase tracking-wider px-1 mb-3">
@@ -124,7 +139,7 @@ export default function ShoppingTab({ items, suggested }: ShoppingTabProps) {
                   </p>
                 </div>
                 <button
-                  onClick={() => handleAddSuggested(item.id)}
+                  onClick={() => handleAddSuggested(item.id, item.name)}
                   className="shrink-0 flex items-center gap-1 rounded-xl bg-stone-100 px-3 py-1.5 text-xs font-medium text-stone-600 hover:bg-stone-200 transition-colors active:scale-95"
                 >
                   追加
