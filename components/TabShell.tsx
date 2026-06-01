@@ -212,6 +212,7 @@ export default function TabShell({
           message={undoConfig.message}
           onUndo={undoConfig.onUndo}
           onDismiss={dismissUndo}
+          onUndoError={(msg) => showUndo({ message: msg })}
         />
       )}
     </div>

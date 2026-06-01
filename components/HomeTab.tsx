@@ -43,7 +43,10 @@ export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
       if ("id" in result) {
         onShowUndo({
           message: name ? `「${name}」を買い物リストへ移動` : "買い物リストへ移動しました",
-          onUndo: async () => { await undoReport(result.id) },
+          onUndo: async () => {
+            const res = await undoReport(result.id)
+            if ("error" in res) throw new Error(res.error)
+          },
         })
       }
     })
@@ -64,7 +67,10 @@ export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
       if ("id" in result) {
         onShowUndo({
           message: name ? `「${name}」をまだ大丈夫へ移動` : "まだ大丈夫へ移動しました",
-          onUndo: async () => { await undoReport(result.id) },
+          onUndo: async () => {
+            const res = await undoReport(result.id)
+            if ("error" in res) throw new Error(res.error)
+          },
         })
       }
     })

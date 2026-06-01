@@ -50,7 +50,10 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
       if ("id" in result) {
         onShowUndo({
           message: `「${itemName}」を買い物リストへ追加`,
-          onUndo: async () => { await undoReport(result.id) },
+          onUndo: async () => {
+            const res = await undoReport(result.id)
+            if ("error" in res) throw new Error(res.error)
+          },
         })
       }
     })
@@ -107,7 +110,10 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
                     onSuccess={(purchaseId) =>
                       onShowUndo({
                         message: `「${item.name}」の購入を記録しました`,
-                        onUndo: async () => { await undoPurchase(purchaseId) },
+                        onUndo: async () => {
+                          const res = await undoPurchase(purchaseId)
+                          if ("error" in res) throw new Error(res.error)
+                        },
                       })
                     }
                   />

@@ -165,7 +165,10 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
                 onSuccess={(purchaseId) =>
                   onShowUndo({
                     message: `「${item.name}」の購入を記録しました`,
-                    onUndo: async () => { await undoPurchase(purchaseId) },
+                    onUndo: async () => {
+                      const res = await undoPurchase(purchaseId)
+                      if ("error" in res) throw new Error(res.error)
+                    },
                   })
                 }
               />

@@ -2,7 +2,7 @@
 
 > 別チャットの Claude にこのアプリを引き継ぐための資料。新しい会話で**これを貼れば文脈が立ち上がる**ことを目指す。
 > 規約・詳細は `CLAUDE.md` に、運用手順は `README.md` にある。このファイルは「今どこまで出来ていて、次に何を考えるか」を伝える。
-> **最終更新：2026-06-01（Undo機能追加・削除機能追加・BuyModal/StockLevelPopup portal化）**
+> **最終更新：2026-06-01（Undo機能追加・削除機能追加・BuyModal/StockLevelPopup portal化・Undoエラーハンドリング）**
 
 ---
 
@@ -25,12 +25,12 @@
 - **全操作にUndoトースト（5秒）**：左スワイプ・右スワイプ・「買った」・提案追加 → 「元に戻す」で該当行を即削除。`undoReport` / `undoPurchase` server action（所有者チェック付き）。スキーマ変更なし。削除のみ確認ダイアログのまま（Undo なし）。
 - 予測ロジック（`lib/prediction.ts`）：スパン加重平均、out真値優先、still＋stock_levelで補正、学習中/そこそこ/高めの精度表示。
 - PWA：ホーム画面に追加可能。
-- DB（Neon）に `items` / `purchases` / `reports`（`stock_level`列あり）+ Auth.jsテーブル。
+- DB（Neon）に `items` / `purchases` / `reports`（`stock_level`列あり）+ Auth.jsテーブル。実DBで `purchases.item_id` / `reports.item_id` の ON DELETE CASCADE を確認済み（information_schema で delete_rule = CASCADE）。
 - 本番デプロイ済み。Vercel Framework Preset = Next.js（重要：Otherにすると全404）。
 
 ## 確定している設計判断（蒸し返さない）
 
-- **Undo 方式**：確認ダイアログではなく即実行＋Undoトースト（5秒）。破壊的な削除のみ確認ダイアログを継続。
+- **Undo 方式**：確認ダイアログではなく即実行＋Undoトースト（5秒）。破壊的な削除のみ確認ダイアログを継続。`undoReport`/`undoPurchase` が失敗した場合はエラートーストを表示（onUndo クロージャが throw → handleUndo で catch → onUndoError → showUndo でメッセージ表示）。
 - **ポップアップはすべて createPortal(document.body)**：TabShell のタブコンテナが `transform` を持つため、`fixed` 要素はポータル化必須。BuyModal / StockLevelPopup / 削除確認 / UndoToast すべてに適用済み。
 
 - 認証はGoogleのみ。メール認証は当面入れない。
