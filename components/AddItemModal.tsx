@@ -28,7 +28,8 @@ export default function AddItemModal() {
       {/* FAB */}
       <button
         onClick={() => setOpen(true)}
-        className="fixed bottom-6 right-6 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg hover:bg-teal-700 active:scale-95 transition-all z-40"
+        className="fixed right-6 flex h-14 w-14 items-center justify-center rounded-full bg-teal-600 text-white shadow-lg hover:bg-teal-700 active:scale-95 transition-all z-40"
+        style={{ bottom: "calc(3.5rem + env(safe-area-inset-bottom) + 1rem)" }}
         aria-label="品目を追加"
       >
         <PlusIcon size={24} />

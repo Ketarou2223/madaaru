@@ -23,7 +23,6 @@ export interface StillOkItem {
     confidence: ConfidenceLevel
   }
   lastStockLevel: "plenty" | "normal" | "low" | null
-  lastReportId: string | null   // ID of the still report; null for prediction-only items
 }
 
 function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
@@ -113,28 +112,6 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
     })
   }
 
-  // Left swipe: "そろそろ（まだある？へ）"
-  // Undoes the 'still' report so the item falls back to prediction-based classification.
-  // Only available for items that have a still report (lastReportId !== null).
-  function handleSwipeLeft(item: StillOkItem) {
-    if (!item.lastReportId) return
-    const reportId = item.lastReportId
-    startTransition(async () => {
-      dispatchOptimistic({ type: "remove", id: item.id })
-      const result = await undoReport(reportId)
-      if ("success" in result) {
-        onShowUndo({
-          message: `「${item.name}」をまだある？へ移動`,
-          onUndo: async () => {
-            const res = await recordReport(item.id, "still", item.lastStockLevel ?? undefined)
-            if ("error" in res) throw new Error(res.error)
-          },
-          onUndoOptimistic: () => dispatchOptimistic({ type: "addBack", item }),
-        })
-      }
-    })
-  }
-
   // Right swipe: "買い物リストへ"
   function handleSwipeRight(item: StillOkItem) {
     startTransition(async () => {
@@ -183,7 +160,6 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
               key={item.id}
               leftConfig={LEFT_CFG}
               rightConfig={RIGHT_CFG}
-              onSwipeLeft={item.lastReportId ? () => handleSwipeLeft(item) : undefined}
               onSwipeRight={() => handleSwipeRight(item)}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
@@ -240,14 +216,7 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
               )}
 
               {/* Swipe hint */}
-              <div className="mt-3 flex items-center justify-between text-xs text-stone-300 select-none">
-                {item.lastReportId ? (
-                  <span className="flex items-center gap-1">
-                    ← {LEFT_CFG.hintLeft.replace("← ", "")}
-                  </span>
-                ) : (
-                  <span />
-                )}
+              <div className="mt-3 flex items-center justify-end text-xs text-stone-300 select-none">
                 <span className="flex items-center gap-1">
                   <ShoppingCartIcon size={12} />
                   {RIGHT_CFG.label} →

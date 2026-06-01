@@ -30,7 +30,7 @@ export default function UndoToast({ message, onUndo, onUndoOptimistic, onDismiss
   return createPortal(
     <div
       className="fixed left-0 right-0 flex justify-center animate-slide-up z-[60] pointer-events-none"
-      style={{ bottom: "max(1.25rem, env(safe-area-inset-bottom))" }}
+      style={{ bottom: "calc(3.5rem + env(safe-area-inset-bottom) + 0.75rem)" }}
     >
       <div className="pointer-events-auto mx-4 flex w-full max-w-sm items-center gap-3 rounded-2xl bg-stone-800 px-4 py-3.5 shadow-xl">
         <p className="flex-1 text-sm text-stone-100 leading-snug">{message}</p>

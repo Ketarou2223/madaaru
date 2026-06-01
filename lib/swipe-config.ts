@@ -41,6 +41,7 @@ export const SWIPE_ACTIONS = {
     activeTextClass: "text-teal-700",
     activeBorderClass: "border-teal-500",
   },
+  // 段階3で items.pinned_until 列と一緒に再実装予定。現在 StillOkTab では onSwipeLeft に渡していない。
   sorosoro: {
     label: "そろそろ…",
     hintLeft: "← そろそろ",

@@ -135,8 +135,8 @@ export default function SwipeCard({
             }
       }
     >
-      {/* Tinder-style action badge — opposite corner from drag direction */}
-      {isLeft && (
+      {/* Tinder-style action badge — only shown when that direction's handler is enabled */}
+      {isLeft && !!onSwipeLeft && (
         <div
           className="absolute top-3.5 right-4 z-20 pointer-events-none"
           style={{
@@ -156,7 +156,7 @@ export default function SwipeCard({
           </span>
         </div>
       )}
-      {isRight && (
+      {isRight && !!onSwipeRight && (
         <div
           className="absolute top-3.5 left-4 z-20 pointer-events-none"
           style={{
@@ -179,7 +179,7 @@ export default function SwipeCard({
 
       {/* Card body — tint overlay inside card, behind content */}
       <div className={`${cardClassName} overflow-hidden relative z-10`}>
-        {(isLeft || isRight) && (
+        {((isLeft && !!onSwipeLeft) || (isRight && !!onSwipeRight)) && (
           <div
             className={`absolute inset-0 pointer-events-none ${
               isPastThreshold ? cfg.activeBgClass : cfg.bgClass

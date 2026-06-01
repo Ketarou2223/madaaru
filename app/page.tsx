@@ -124,7 +124,6 @@ export default async function HomePage() {
         category: item.category,
         prediction: predictionData,
         lastStockLevel: lastStockLevel as "plenty" | "normal" | "low" | null,
-        lastReportId: lastReportAfterPurchase?.id ?? null,
       })
       // If stock level is "low", also suggest in shopping list
       if (lastStockLevel === "low") {
@@ -154,7 +153,6 @@ export default async function HomePage() {
           category: item.category,
           prediction: predictionData,
           lastStockLevel: null,
-          lastReportId: null,  // prediction-based: no report to undo
         })
       }
     }
