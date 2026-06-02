@@ -2,7 +2,7 @@
 
 > 別チャットの Claude にこのアプリを引き継ぐための資料。新しい会話で**これを貼れば文脈が立ち上がる**ことを目指す。
 > 規約・詳細は `CLAUDE.md` に、運用手順は `README.md` にある。このファイルは「今どこまで出来ていて、次に何を考えるか」を伝える。
-> **最終更新：2026-06-02（バグ修正：日付ラベル二重付与・タブストリップ7アイテム化）**
+> **最終更新：2026-06-02（タップ移動の引き戻りジャンプ修正）**
 
 ---
 
@@ -41,7 +41,8 @@
 
 - **Undo 方式**：確認ダイアログではなく即実行＋Undoトースト（5秒）。破壊的な削除のみ確認ダイアログを継続。`undoReport`/`undoPurchase` が失敗した場合はエラートーストを表示（onUndo クロージャが throw → handleUndo で catch → onUndoError → showUndo でメッセージ表示）。「元に戻す」は楽観更新：`UndoToast.handleUndo` が `startTransition` 内で `onUndoOptimistic`（`useOptimistic` dispatch）を呼んでから server action を裏で実行。
 - **SwipeCard 設計**：`children` + `leftConfig/rightConfig` を受け取る汎用ジェスチャーラッパー。カード固有の内容（名前・予測・ヒント行）は各タブのコンポーネントで管理。`cardClassName` propでカード背景色をオーバーライド可能。スワイプ方向の設定は `lib/swipe-config.ts` の `SWIPE_ACTIONS` 定数に集約。
-- **ポップアップはすべて createPortal(document.body)**：TabShell のタブコンテナが `transform` を持つため、`fixed` 要素はポータル化必須。BuyModal / StockLevelPopup / 削除確認 / UndoToast すべてに適用済み。
+- **ポップアップはすべて createPortal(document.body)**：TabShell のタブコンテナが `transform` を持つため、`fixed` 要素はポータル化必須。BuyModal / StockLevelPopup / 削除確認 / UndoToast / 設定モーダル すべてに適用済み。
+- **設定ボタン**：ヘッダー右端に `SettingsIcon`（歯車）。タップで設定ボトムシートを開く（`createPortal`）。現在の中身はログアウトのみ（既存の `signOutAction` をそのまま呼ぶ）。将来「アーカイブ一覧」「利用規約/プライバシー」「アカウント情報」を追加予定。
 
 - 認証はGoogleのみ。メール認証は当面入れない。
 - DBは別プロジェクトにせず1つのNeonで運用（無料枠の都合。元計画はスキーマ相乗りだったが、本アプリは単独構成）。
@@ -53,7 +54,7 @@
 - **段階3-B完了**：`items` に `pinned_to_home_at`（ピン留め）/ `archived_at`（未使用）を追加済み。まだ大丈夫→まだある？の「そろそろ引き上げ」を `pinItemToHome` server action + 表示分類 OR 条件で実装済み。`swipe-config.ts` の `sorosoro` 設定を再利用。
 - **段階3-C（未着手）**：`archived_at` 列の活用（アーカイブ機能）。買い物リストの右スワイプ削除。
 - 使い込んだ後の予測精度の検証（実データでスパンが妥当か）。
-- タブ無限ループの挙動確認：7アイテムタブストリップ方式に修正済み（クローン位置0/4の隣アイテムが実位置3/1と一致し、ジャンプが不可視になった）。
+- タブ無限ループの挙動確認：7アイテムタブストリップ方式に修正済み（クローン位置0/4の隣アイテムが実位置3/1と一致し、ジャンプが不可視になった）。タップ移動も最短円環経路で動くよう修正済み（`navigateToTab` が `CANONICAL_IDX` 直行からショートパス計算に変更）。
 - 当たってきたら：購入リンク（アフィリエイト）、家族共有、レシートOCR、プッシュ通知＋Cron。
 - いずれも**芯（切らさない一点）を薄めないこと**が判断軸。機能を盛らない。
 

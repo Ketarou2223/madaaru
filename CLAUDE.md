@@ -76,8 +76,9 @@
   - 各カード右上のゴミ箱ボタン → 確認ダイアログ → 品目削除（`deleteItem` server action。CASCADE で purchases / reports も一括削除）。削除は Undo 不可。
 - **スワイプ方向プレビュー（Tinder式）**：ドラッグ中、カード上に操作名バッジを表示。しきい値（`SWIPE_THRESHOLD = 72px`）未満は淡く、超えたら色濃く強調。カードが微妙に傾く（最大3°）。設定は `lib/swipe-config.ts` に集約。
 - **Undo トースト**：操作後5秒間、下タブバーより上に（`bottom: calc(3.5rem + env(safe-area-inset-bottom) + 0.75rem)`）表示。取消 action（`undoReport` / `undoPurchase`）でその操作の挿入行を1件削除。ユーザー所有チェック必須。スキーマ変更なし。
-- **ポップアップ共通**：BuyModal / StockLevelPopup / 削除確認ダイアログ / UndoToast はすべて `createPortal(…, document.body)` で描画。TabShell のタブコンテナに `transform` があり `fixed` の基準がずれるため、必ず portal を使うこと。
+- **ポップアップ共通**：BuyModal / StockLevelPopup / 削除確認ダイアログ / UndoToast / 設定モーダル はすべて `createPortal(…, document.body)` で描画。TabShell のタブコンテナに `transform` があり `fixed` の基準がずれるため、必ず portal を使うこと。
 - **FAB（品目追加）**：`fixed right-6` + `bottom: calc(3.5rem + env(safe-area-inset-bottom) + 1rem)` で下タブバーより上に配置。
+- **設定ボタン**：ヘッダー右端に歯車アイコン（`SettingsIcon`）。タップで設定ボトムシートを開く（`createPortal`）。現在の中身はログアウトのみ。将来「アーカイブ一覧」「利用規約/プライバシー」「アカウント情報」を追加予定。
 
 ---
 

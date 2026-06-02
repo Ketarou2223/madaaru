@@ -1,13 +1,14 @@
 "use client"
 
 import { useState, useRef, useEffect, useCallback } from "react"
+import { createPortal } from "react-dom"
 import HomeTab from "./HomeTab"
 import ShoppingTab from "./ShoppingTab"
 import StillOkTab from "./StillOkTab"
 import AddItemModal from "./AddItemModal"
 import UndoToast from "./UndoToast"
 import type { UndoConfig } from "./UndoToast"
-import { ShoppingCartIcon, LayersIcon, PackageIcon, LogOutIcon } from "./icons"
+import { ShoppingCartIcon, LayersIcon, PackageIcon, LogOutIcon, SettingsIcon, XIcon } from "./icons"
 import { signOutAction } from "@/app/actions"
 import type { HomeItem } from "./HomeTab"
 import type { ShoppingItem, SuggestedItem } from "./ShoppingTab"
@@ -59,10 +60,14 @@ export default function TabShell({
   const [dragOffset, setDragOffset] = useState(0)
   const [isJumping, setIsJumping] = useState(false)
   const [undoConfig, setUndoConfig] = useState<UndoConfig | null>(null)
+  const [settingsOpen, setSettingsOpen] = useState(false)
 
   // Synchronously updated before setState so rapid-swipe handlers always read latest idx.
   const physicalIdxRef = useRef(2)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  // If a tap fires while we're on a clone (mid-swipe), store the target here and
+  // apply it once isJumping clears (after the instant clone→canonical snap).
+  const pendingNavRef = useRef<number | null>(null)
 
   // tabBarRef: touch listeners for tab-switching attach here directly.
   // Since the element IS the tab bar, no Y-coordinate check is needed.
@@ -82,7 +87,38 @@ export default function TabShell({
   }, [])
 
   const navigateToTab = useCallback((tab: LogicalTab) => {
-    goToPhysical(CANONICAL_IDX[tab])
+    const target = CANONICAL_IDX[tab]
+    const cur = physicalIdxRef.current
+    // Canonical equiv of cur (in case we're on a clone mid-transition)
+    const curCanonical = cur === 0 ? 3 : cur === 4 ? 1 : cur
+
+    if (curCanonical === target) {
+      // Already displaying the target tab — snap clone back to canonical if needed
+      if (cur !== curCanonical) {
+        setIsJumping(true)
+        goToPhysical(curCanonical)
+      }
+      setDragOffset(0)
+      return
+    }
+
+    // Shortest circular path on the ring of 3 canonical slots (1=shopping, 2=home, 3=stillok).
+    // dist ∈ {-1, +1}; going through the boundary lands on a clone (0 or 4),
+    // and handlePanelTransitionEnd will do the invisible jump — same as swipe.
+    let dist = target - curCanonical          // ±1 or ±2
+    if (dist > 1) dist -= 3                   // +2 → -1 (left through clone 0)
+    if (dist < -1) dist += 3                  // -2 → +1 (right through clone 4)
+    const physicalTarget = curCanonical + dist // may be 0 or 4
+
+    if (cur !== curCanonical) {
+      // We're on a clone (swipe animation still in flight): snap to canonical first,
+      // then trigger the real animation once isJumping clears.
+      setIsJumping(true)
+      goToPhysical(curCanonical)
+      pendingNavRef.current = physicalTarget
+    } else {
+      goToPhysical(physicalTarget)
+    }
     setDragOffset(0)
   }, [goToPhysical])
 
@@ -115,11 +151,19 @@ export default function TabShell({
   }
 
   // Re-enable transition after jump paint (double RAF guarantees the frame committed).
+  // Also fires any tap navigation that was queued while we were on a clone.
   useEffect(() => {
-    if (!isJumping) return
+    if (!isJumping) {
+      if (pendingNavRef.current !== null) {
+        const t = pendingNavRef.current
+        pendingNavRef.current = null
+        goToPhysical(t)
+      }
+      return
+    }
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => setIsJumping(false)))
     return () => cancelAnimationFrame(raf)
-  }, [isJumping])
+  }, [isJumping, goToPhysical])
 
   // --- Tab bar touch handlers (attached to tabBarRef, not the panel area) ---
   // Horizontal drag → tab switch. Vertical → ignored (nothing to scroll in tab bar).
@@ -205,12 +249,13 @@ export default function TabShell({
       >
         <div className="flex items-center justify-between">
           <h1 className="text-lg font-bold text-teal-700 tracking-tight">まだある？</h1>
-          <form action={signOutAction}>
-            <button className="flex items-center gap-1.5 text-xs text-stone-400 hover:text-stone-600 transition-colors py-1">
-              <LogOutIcon size={14} />
-              ログアウト
-            </button>
-          </form>
+          <button
+            onClick={() => setSettingsOpen(true)}
+            className="p-1.5 text-stone-400 hover:text-stone-600 transition-colors"
+            aria-label="設定"
+          >
+            <SettingsIcon size={20} />
+          </button>
         </div>
       </header>
 
@@ -315,6 +360,40 @@ export default function TabShell({
           onDismiss={dismissUndo}
           onUndoError={(msg) => showUndo({ message: msg })}
         />
+      )}
+
+      {settingsOpen && createPortal(
+        <div
+          className="fixed inset-0 z-50 animate-fade-in"
+          style={{ backgroundColor: "rgba(0,0,0,0.4)" }}
+          onClick={() => setSettingsOpen(false)}
+        >
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-white rounded-t-2xl animate-slide-up"
+            style={{ paddingBottom: "max(1.5rem, env(safe-area-inset-bottom))" }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between px-5 py-4 border-b border-stone-100">
+              <span className="font-semibold text-stone-800">設定</span>
+              <button
+                onClick={() => setSettingsOpen(false)}
+                className="p-1 text-stone-400 hover:text-stone-600 transition-colors"
+                aria-label="閉じる"
+              >
+                <XIcon size={20} />
+              </button>
+            </div>
+            <div className="px-5 py-3">
+              <form action={signOutAction}>
+                <button className="flex items-center gap-2.5 w-full py-3 text-sm text-stone-700 hover:text-stone-900 transition-colors">
+                  <LogOutIcon size={18} />
+                  ログアウト
+                </button>
+              </form>
+            </div>
+          </div>
+        </div>,
+        document.body
       )}
     </div>
   )
