@@ -56,8 +56,8 @@ function daysLabel(days: number | null): string {
   if (days === null) return "—"
   if (days < 0) return `${Math.abs(days)}日 超過`
   if (days === 0) return "今日切れそう"
-  if (days === 1) return "明日"
-  return `約 ${days}日後`
+  if (days === 1) return "明日切れそう"
+  return `約 ${days}日後に切れそう`
 }
 
 function nextDateLabel(iso: string | null): string {
@@ -208,7 +208,7 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
                   <CalendarIcon size={14} className="text-stone-400" />
                   <span>
                     {item.prediction.daysRemaining !== null
-                      ? `${daysLabel(item.prediction.daysRemaining)}に切れそう`
+                      ? daysLabel(item.prediction.daysRemaining)
                       : "切れ時期を学習中"}
                   </span>
                 </div>
@@ -230,7 +230,7 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
 
               {item.prediction.nextDepleteDate && (
                 <p className="mt-1.5 text-xs text-stone-400">
-                  {nextDateLabel(item.prediction.nextDepleteDate)} ごろ
+                  {nextDateLabel(item.prediction.nextDepleteDate)}
                 </p>
               )}
 

@@ -28,6 +28,12 @@ type LogicalTab = "shopping" | "home" | "stillok"
 const PHYSICAL_LOGICAL: readonly LogicalTab[] = ["stillok", "shopping", "home", "stillok", "shopping"]
 const CANONICAL_IDX: Record<LogicalTab, number> = { shopping: 1, home: 2, stillok: 3 }
 
+// 7-item tab strip (5 physical slots + 1 extra on each end).
+// Clone positions (physicalIdx 0/4) now show identical neighbors to real positions (3/1),
+// making the infinite-loop jump completely invisible in the tab bar.
+// Order follows the circular sequence home→stillok→shopping→home→...
+const PHYSICAL_TAB_ITEMS: readonly LogicalTab[] = ["home", "stillok", "shopping", "home", "stillok", "shopping", "home"]
+
 const TAB_DEFS = [
   { id: "shopping" as const, label: "買い物リスト", Icon: ShoppingCartIcon },
   { id: "home" as const, label: "まだある？", Icon: LayersIcon },
@@ -186,8 +192,10 @@ export default function TabShell({
     : "transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)"
 
   // Tab item strip translateX: centers the item at physicalIdx in the screen's middle third.
+  // Strip has 7 items; the center item for physicalIdx n is at strip index n+1, so
+  // translateX = -(n+1)*ITEM_VW + ITEM_VW = -n*ITEM_VW (the +ITEM_VW for the leading extra item cancels out).
   // During drag, moves at 1/3 the speed of panels (dragOffset px → dragOffset/3 px).
-  const tabStripTranslate = `translateX(calc(${(1 - physicalIdx) * ITEM_VW}vw + ${dragOffset / 3}px))`
+  const tabStripTranslate = `translateX(calc(${-physicalIdx * ITEM_VW}vw + ${dragOffset / 3}px))`
 
   return (
     <div className="flex flex-col" style={{ height: "100dvh" }}>
@@ -248,13 +256,13 @@ export default function TabShell({
           <div
             className="flex h-full"
             style={{
-              width: `${5 * ITEM_VW}vw`,
+              width: `${7 * ITEM_VW}vw`,
               transform: tabStripTranslate,
               transition: stripTransition,
               willChange: "transform",
             }}
           >
-            {PHYSICAL_LOGICAL.map((logicalId, i) => {
+            {PHYSICAL_TAB_ITEMS.map((logicalId, i) => {
               const tab = TAB_DEFS.find(t => t.id === logicalId)!
               const isActive = logicalId === activeLogical
               return (
