@@ -73,6 +73,8 @@ export const items = pgTable("items", {
   name: text("name").notNull(),
   category: text("category"),
   createdAt: timestamp("created_at", { mode: "date" }).defaultNow().notNull(),
+  pinnedToHomeAt: timestamp("pinned_to_home_at", { mode: "date" }),
+  archivedAt: timestamp("archived_at", { mode: "date" }),
 })
 
 export const purchases = pgTable("purchases", {

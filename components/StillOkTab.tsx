@@ -10,7 +10,7 @@ import {
 } from "./icons"
 import type { ConfidenceLevel } from "@/lib/prediction"
 import type { UndoConfig } from "./UndoToast"
-import { deleteItem, undoPurchase, undoReport, recordReport } from "@/app/actions"
+import { deleteItem, undoPurchase, undoReport, recordReport, pinItemToHome, unpinItemFromHome } from "@/app/actions"
 import { SWIPE_ACTIONS } from "@/lib/swipe-config"
 
 export interface StillOkItem {
@@ -112,6 +112,24 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
     })
   }
 
+  // Left swipe: "そろそろ…" → ホームへピン留め
+  function handleSwipeLeft(item: StillOkItem) {
+    startTransition(async () => {
+      dispatchOptimistic({ type: "remove", id: item.id })
+      const result = await pinItemToHome(item.id)
+      if ("success" in result) {
+        onShowUndo({
+          message: `「${item.name}」をまだある？へ`,
+          onUndo: async () => {
+            const res = await unpinItemFromHome(item.id)
+            if ("error" in res) throw new Error(res.error)
+          },
+          onUndoOptimistic: () => dispatchOptimistic({ type: "addBack", item }),
+        })
+      }
+    })
+  }
+
   // Right swipe: "買い物リストへ"
   function handleSwipeRight(item: StillOkItem) {
     startTransition(async () => {
@@ -160,6 +178,7 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
               key={item.id}
               leftConfig={LEFT_CFG}
               rightConfig={RIGHT_CFG}
+              onSwipeLeft={() => handleSwipeLeft(item)}
               onSwipeRight={() => handleSwipeRight(item)}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
@@ -216,7 +235,8 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
               )}
 
               {/* Swipe hint */}
-              <div className="mt-3 flex items-center justify-end text-xs text-stone-300 select-none">
+              <div className="mt-3 flex items-center justify-between text-xs text-stone-300 select-none">
+                <span>{LEFT_CFG.hintLeft}</span>
                 <span className="flex items-center gap-1">
                   <ShoppingCartIcon size={12} />
                   {RIGHT_CFG.label} →

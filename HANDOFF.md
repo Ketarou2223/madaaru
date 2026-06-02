@@ -2,7 +2,7 @@
 
 > 別チャットの Claude にこのアプリを引き継ぐための資料。新しい会話で**これを貼れば文脈が立ち上がる**ことを目指す。
 > 規約・詳細は `CLAUDE.md` に、運用手順は `README.md` にある。このファイルは「今どこまで出来ていて、次に何を考えるか」を伝える。
-> **最終更新：2026-06-01（段階3-A修正③作り直し：中央固定マーカー＋並び流動方式）**
+> **最終更新：2026-06-02（段階3-B：ピン留め方式でそろそろ引き上げ実装）**
 
 ---
 
@@ -27,14 +27,14 @@
 - 「まだ大丈夫」「買い物リスト」の「買った」ボタン → BuyModal（量3択+日付）が**その場に正しく表示**。購入後は買い物リストから正しく消える（同日の `soon` レポートを購入で上書き。`createdAt` タイムスタンプ比較で修正）。
 - **Tinder式スワイプ方向プレビュー（段階2完了）**：ドラッグ中にバッジ表示（しきい値前=淡い、超えると強調）。カード微傾き（最大3°）。`lib/swipe-config.ts` に定数集約。
   - まだある？：左=買い物リストへ / 右=まだ大丈夫（既存）
-  - まだ大丈夫：左=**無効（段階3で再実装予定）**/ 右=買い物リストへ
+  - まだ大丈夫：左=**そろそろ（ピン留め・実装済み）**/ 右=買い物リストへ
   - 買い物リスト：左=買った（即購入、defaultで normal qty + today）/ 右=削除プレビュー（段階3予定）
 - `StillOkItem` は `id / name / category / prediction / lastStockLevel` のみ。`lastReportId` は段階3で復活予定のため削除済み。
 - **全操作にUndoトースト（5秒）**：左スワイプ・右スワイプ・「買った」・提案追加 → 「元に戻す」で該当行を即削除。`undoReport` / `undoPurchase` server action（所有者チェック付き）。スキーマ変更なし。削除のみ確認ダイアログのまま（Undo なし）。
 - **Undo楽観更新**：「元に戻す」押下と同時にローカル状態で画面を戻す（`useOptimistic` の `addBack` アクション）。server action は `startTransition` 内で裏実行。失敗時は `onUndoError` でエラートースト。`UndoConfig` に `onUndoOptimistic?: () => void` を追加。各タブの `useOptimistic` を双方向化（remove/addBack）。
 - 予測ロジック（`lib/prediction.ts`）：スパン加重平均、out真値優先、still＋stock_levelで補正、学習中/そこそこ/高めの精度表示。
 - PWA：ホーム画面に追加可能。
-- DB（Neon）に `items` / `purchases` / `reports`（`stock_level`列あり）+ Auth.jsテーブル。実DBで `purchases.item_id` / `reports.item_id` の ON DELETE CASCADE を確認済み（information_schema で delete_rule = CASCADE）。
+- DB（Neon）に `items`（`pinned_to_home_at` / `archived_at` 追加済み） / `purchases` / `reports`（`stock_level`列あり）+ Auth.jsテーブル。実DBで `purchases.item_id` / `reports.item_id` の ON DELETE CASCADE を確認済み（information_schema で delete_rule = CASCADE）。
 - 本番デプロイ済み。Vercel Framework Preset = Next.js（重要：Otherにすると全404）。
 
 ## 確定している設計判断（蒸し返さない）
@@ -50,7 +50,8 @@
 
 ## 次に検討しうること（未着手・要相談）
 
-- **段階3**：`items` にピン留め列（`pinned_until` など）を追加し、まだ大丈夫→まだある？の「そろそろ引き上げ」を再実装。同タイミングで買い物リストの右スワイプ削除も完成させる。`swipe-config.ts` の `sorosoro` 設定は再利用予定で残してある。
+- **段階3-B完了**：`items` に `pinned_to_home_at`（ピン留め）/ `archived_at`（未使用）を追加済み。まだ大丈夫→まだある？の「そろそろ引き上げ」を `pinItemToHome` server action + 表示分類 OR 条件で実装済み。`swipe-config.ts` の `sorosoro` 設定を再利用。
+- **段階3-C（未着手）**：`archived_at` 列の活用（アーカイブ機能）。買い物リストの右スワイプ削除。
 - 使い込んだ後の予測精度の検証（実データでスパンが妥当か）。
 - タブ無限ループの挙動確認（端をまたいでもカクつかないか済み、インジケーターが正しく流れるか確認中）。
 - 当たってきたら：購入リンク（アフィリエイト）、家族共有、レシートOCR、プッシュ通知＋Cron。

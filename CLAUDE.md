@@ -70,7 +70,7 @@
   - 右で「きれそう（`low`）」を選んだものは、**買い物リスト下部に「提案」として薄く表示**。
 - **買い物リスト**：買うと確定したもの。「買った」ボタン（詳細入力）または**左スワイプ（即購入、normalのデフォルト）** → `purchases` に記録 → Undo トースト。右スワイプ=削除（段階3で実装予定、現状はプレビューのみ）。提案行の「追加」も Undo 可能。
 - **まだ大丈夫**：手元にある所持品一覧。各カードに次に切れそうな日と精度バッジ（学習中/そこそこ/高め）。
-  - **左スワイプ →「そろそろ」（まだある？へ）**：**段階3-Bで実装予定・現在無効**。`items` にピン留め列を追加して上書き分類する方式で再実装する。現状は `onSwipeLeft=undefined`（バッジ・色・ヒント不表示、スナップバック）。
+  - **左スワイプ →「そろそろ」（まだある？へ）**：**実装済み（ピン留め方式）**。`pinItemToHome` server action が `items.pinned_to_home_at` に現在時刻をセット。`app/page.tsx` の分類で `pinned_to_home_at` が非null な item は予測・レポート状態を上書きしてホームへ。Undo でピンを null に戻す。
   - **右スワイプ →「買い物リストへ」**：`reports` に `soon` 記録 → Undo トースト。
   - 「買った」ボタン → `purchases` 記録 → Undo トースト。
   - 各カード右上のゴミ箱ボタン → 確認ダイアログ → 品目削除（`deleteItem` server action。CASCADE で purchases / reports も一括削除）。削除は Undo 不可。
@@ -84,7 +84,7 @@
 ## データモデル（Drizzle / Postgres）
 
 - Auth.js adapter標準テーブル：`users` / `accounts` / `sessions` / `verification_tokens`
-- `items`：id, user_id, name, category, created_at
+- `items`：id, user_id, name, category, created_at, **pinned_to_home_at**（timestamp, null許容 — 手動でホームにピン留め中の場合にセット）, **archived_at**（timestamp, null許容 — 列のみ用意・3-Cで利用予定、現在未使用）
 - `purchases`：id, item_id, purchased_on, qty_tag(more/normal/less), created_at
 - `reports`：id, item_id, reported_on, kind(soon/out/still), **stock_level(plenty/normal/low, null許容)**, created_at
 
@@ -100,6 +100,7 @@
 - `qty_tag`で購入量を正規化。
 - **係数・しきい値は `PREDICTION_CONFIG`（および `STOCK_LEVEL_CORRECTION` / `HOME_TAB_THRESHOLD_DAYS`）に集約**。ロジックを散らさず、ここを触れば調整できる状態を保つ。
 - データ不足（スパン0件）では予測を出さず「学習中」。破綻させない。
+- **ホーム表示条件**：`app/page.tsx` の分類ロジックで「`pinned_to_home_at` が非null」OR「`daysRemaining <= HOME_TAB_THRESHOLD_DAYS`」をホームに出す。予測係数（`PREDICTION_CONFIG` 等）は一切変更していない。
 
 ---
 

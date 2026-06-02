@@ -101,6 +101,7 @@ export default async function HomePage() {
 
     const lastKind = lastReportAfterPurchase?.kind ?? null
     const lastStockLevel = lastReportAfterPurchase?.stockLevel ?? null
+    const pinned = item.pinnedToHomeAt != null
 
     const predictionData = {
       nextDepleteDate: prediction.nextDepleteDate?.toISOString() ?? null,
@@ -109,12 +110,20 @@ export default async function HomePage() {
     }
 
     if (lastKind === "soon" || lastKind === "out") {
-      // On shopping list
+      // On shopping list（ピンより優先）
       shoppingItems.push({
         id: item.id,
         name: item.name,
         category: item.category,
         lastReportKind: lastKind,
+      })
+    } else if (pinned) {
+      // ピン留め → 予測・レポート状態を上書きしてホームへ
+      homeItems.push({
+        id: item.id,
+        name: item.name,
+        category: item.category,
+        prediction: predictionData,
       })
     } else if (lastKind === "still") {
       // Confirmed in stock — appears in まだ大丈夫

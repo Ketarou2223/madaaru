@@ -62,6 +62,12 @@ export async function recordPurchase(
     .values({ itemId, purchasedOn: new Date(purchasedOn), qtyTag })
     .returning()
 
+  // 購入でピンを解除（ピン留めの有無に関わらず実行）
+  await db
+    .update(items)
+    .set({ pinnedToHomeAt: null })
+    .where(eq(items.id, itemId))
+
   revalidatePath("/")
   revalidatePath("/shopping")
   return { success: true, id: purchase.id }
@@ -89,6 +95,14 @@ export async function recordReport(
     .insert(reports)
     .values({ itemId, reportedOn: today, kind, ...(stockLevel ? { stockLevel } : {}) })
     .returning()
+
+  // "まだ大丈夫" 回答でピンを解除（HomeTab 右スワイプ3択）
+  if (kind === "still") {
+    await db
+      .update(items)
+      .set({ pinnedToHomeAt: null })
+      .where(eq(items.id, itemId))
+  }
 
   revalidatePath("/")
   revalidatePath("/shopping")
@@ -144,6 +158,34 @@ export async function deleteItem(itemId: string): Promise<ActionResult> {
 
   await db
     .delete(items)
+    .where(and(eq(items.id, itemId), eq(items.userId, userId)))
+
+  revalidatePath("/")
+  revalidatePath("/shopping")
+  return { success: true }
+}
+
+export async function pinItemToHome(itemId: string): Promise<ActionResult> {
+  const userId = await getUserId()
+  if (!userId) return { error: "ログインが必要です" }
+
+  await db
+    .update(items)
+    .set({ pinnedToHomeAt: new Date() })
+    .where(and(eq(items.id, itemId), eq(items.userId, userId)))
+
+  revalidatePath("/")
+  revalidatePath("/shopping")
+  return { success: true }
+}
+
+export async function unpinItemFromHome(itemId: string): Promise<ActionResult> {
+  const userId = await getUserId()
+  if (!userId) return { error: "ログインが必要です" }
+
+  await db
+    .update(items)
+    .set({ pinnedToHomeAt: null })
     .where(and(eq(items.id, itemId), eq(items.userId, userId)))
 
   revalidatePath("/")
