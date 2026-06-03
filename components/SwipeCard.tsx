@@ -1,7 +1,7 @@
 "use client"
 
 import { useRef, useState, useEffect, useCallback } from "react"
-import { SWIPE_THRESHOLD, type SwipeActionConfig } from "@/lib/swipe-config"
+import { SWIPE_COMMIT_PX, type SwipeActionConfig } from "@/lib/swipe-config"
 
 export interface SwipeCardProps {
   children: React.ReactNode
@@ -69,13 +69,13 @@ export default function SwipeCard({
 
     if (!wasHorizontal) return
 
-    if (dx < -SWIPE_THRESHOLD && onSwipeLeft) {
+    if (dx < -SWIPE_COMMIT_PX && onSwipeLeft) {
       // Confirmed left: fly off from current position — don't reset dragX to 0
       exitingRef.current = true
       exitDirRef.current = "left"
       setIsExiting(true)
       setDragX(-1500)
-    } else if (dx > SWIPE_THRESHOLD && onSwipeRight) {
+    } else if (dx > SWIPE_COMMIT_PX && onSwipeRight) {
       // Confirmed right: fly off from current position
       exitingRef.current = true
       exitDirRef.current = "right"
@@ -112,8 +112,8 @@ export default function SwipeCard({
   }, [isExiting, onSwipeLeft, onSwipeRight])
 
   const absDx = Math.abs(dragX)
-  const dragProgress = Math.min(absDx / SWIPE_THRESHOLD, 1) // 0→1
-  const isPastThreshold = absDx >= SWIPE_THRESHOLD
+  const dragProgress = Math.min(absDx / SWIPE_COMMIT_PX, 1) // 0→1
+  const isPastThreshold = absDx >= SWIPE_COMMIT_PX
   const isLeft = dragX < -8
   const isRight = dragX > 8
 
@@ -125,7 +125,7 @@ export default function SwipeCard({
   const tintOpacity = dragProgress * 0.25
 
   // Card rotation: ±3° at threshold for lifted-card feel
-  const rotation = Math.sign(dragX) * Math.min((absDx / SWIPE_THRESHOLD) * 3, 3)
+  const rotation = Math.sign(dragX) * Math.min((absDx / SWIPE_COMMIT_PX) * 3, 3)
 
   const cfg = isLeft ? leftConfig : rightConfig
 

@@ -1,17 +1,45 @@
-// Swipe gesture configuration — single source of truth for labels, colors, threshold.
-// To tune behavior, edit here only.
+// Swipe gesture configuration — single source of truth for labels, colors, thresholds.
+// To tune behavior, edit here only. SwipeCard reads these; tab components only read labels.
 
-export const SWIPE_THRESHOLD = 72  // px: drag distance that commits the action
+// Distance (px) at which a swipe commits and fires its callback.
+// Below this threshold → snaps back on release.
+// Tuned for a ~390px-wide screen; increase if accidental triggers occur.
+export const SWIPE_COMMIT_PX = 220
+
+// Haptic pulse duration (ms) fired once when drag first crosses SWIPE_COMMIT_PX.
+// navigator.vibrate is optional-chained, so this silently no-ops on iOS / unsupported browsers.
+export const SWIPE_HAPTIC_MS = 8
+
+// --- Zone overlay strip constants ---
+
+// Zone colors are direction-fixed (left strip = red, right strip = blue) regardless of action.
+// Using CSS hex values to avoid Tailwind dynamic-class purge issues.
+export const ZONE_LEFT_COLOR = "#ef4444"   // red-500
+export const ZONE_RIGHT_COLOR = "#3b82f6"  // blue-500
+export const ZONE_LABEL_COLOR = "#ffffff"  // white text in both zones
+
+// Width (px) of each zone strip at rest (always visible as an affordance hint)
+export const ZONE_RESTING_PX = 28
+
+// Maximum zone width (px) when drag reaches SWIPE_COMMIT_PX
+export const ZONE_MAX_PX = 120
+
+// Zone strip opacity: resting → fully committed
+export const ZONE_OPACITY_RESTING = 0.18
+export const ZONE_OPACITY_ACTIVE  = 0.92
+
+// Card body tint: max opacity of the color wash applied to the card as it's dragged
+export const CARD_TINT_MAX_OPACITY = 0.48
 
 export interface SwipeActionConfig {
-  label: string        // badge text shown during drag
-  hintLeft: string     // static bottom-hint text for left direction
-  hintRight: string    // static bottom-hint text for right direction
-  // Before threshold — subtle preview
+  label: string        // zone large label (also used in static footer hints in tabs)
+  hintLeft: string     // static bottom-hint text for left direction  (tab footers)
+  hintRight: string    // static bottom-hint text for right direction (tab footers)
+  // Card-body tint Tailwind classes (before / after commit threshold)
+  // Kept for the current SwipeCard; will be removed when tint switches to inline style in 段1-β.
   bgClass: string
   textClass: string
   borderClass: string
-  // At/past threshold — "commit" emphasis
   activeBgClass: string
   activeTextClass: string
   activeBorderClass: string
@@ -41,7 +69,6 @@ export const SWIPE_ACTIONS = {
     activeTextClass: "text-teal-700",
     activeBorderClass: "border-teal-500",
   },
-  // 段階3-B で items.pinned_to_home_at 列と一緒に実装済み。
   sorosoro: {
     label: "そろそろ…",
     hintLeft: "← そろそろ",
