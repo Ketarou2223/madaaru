@@ -186,7 +186,7 @@ export default function SwipeCard({
 
         {/* Left-action zone — red strip at card's right edge, grows leftward */}
         <div
-          className="absolute top-0 right-0 bottom-0 z-20 flex items-center justify-start overflow-hidden pointer-events-none"
+          className="absolute top-0 right-0 bottom-0 z-20 flex items-center justify-end overflow-hidden pointer-events-none"
           style={{
             width: leftZoneWidth,
             background: ZONE_LEFT_COLOR,
