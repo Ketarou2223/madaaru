@@ -7,7 +7,6 @@ import { recordReport, undoReport } from "@/app/actions"
 import type { StockLevel } from "@/lib/db/schema"
 import type { ConfidenceLevel } from "@/lib/prediction"
 import type { UndoConfig } from "./UndoToast"
-import { ShoppingCartIcon, CheckIcon } from "./icons"
 import { SWIPE_ACTIONS } from "@/lib/swipe-config"
 
 export interface HomeItem {
@@ -161,16 +160,6 @@ export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
             <p className={`text-base font-semibold ${urgencyColor(item.prediction.daysRemaining)}`}>
               {daysLabel(item.prediction.daysRemaining)}
             </p>
-            <div className="mt-4 flex items-center justify-between text-xs text-stone-300 select-none">
-              <span className="flex items-center gap-1">
-                <ShoppingCartIcon size={12} />
-                {LEFT_CFG.hintLeft}
-              </span>
-              <span className="flex items-center gap-1">
-                {RIGHT_CFG.hintRight}
-                <CheckIcon size={12} />
-              </span>
-            </div>
           </SwipeCard>
         ))}
       </div>

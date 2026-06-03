@@ -6,7 +6,7 @@ import SwipeCard from "./SwipeCard"
 import BuyModal from "./BuyModal"
 import {
   PackageIcon, CalendarIcon, LeafIcon, TrendingUpIcon,
-  TargetIcon, TrashIcon, ShoppingCartIcon,
+  TargetIcon, TrashIcon,
 } from "./icons"
 import type { ConfidenceLevel } from "@/lib/prediction"
 import type { UndoConfig } from "./UndoToast"
@@ -234,14 +234,6 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
                 </p>
               )}
 
-              {/* Swipe hint */}
-              <div className="mt-3 flex items-center justify-between text-xs text-stone-300 select-none">
-                <span>{LEFT_CFG.hintLeft}</span>
-                <span className="flex items-center gap-1">
-                  <ShoppingCartIcon size={12} />
-                  {RIGHT_CFG.label} →
-                </span>
-              </div>
             </SwipeCard>
           ))}
         </div>

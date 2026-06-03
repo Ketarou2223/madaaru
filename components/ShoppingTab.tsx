@@ -4,7 +4,7 @@ import { startTransition, useOptimistic } from "react"
 import SwipeCard from "./SwipeCard"
 import BuyModal from "./BuyModal"
 import { recordReport, recordPurchase, undoReport, undoPurchase } from "@/app/actions"
-import { ShoppingCartIcon, ChevronRightIcon, TrashIcon } from "./icons"
+import { ShoppingCartIcon, ChevronRightIcon } from "./icons"
 import type { ConfidenceLevel } from "@/lib/prediction"
 import type { UndoConfig } from "./UndoToast"
 import { SWIPE_ACTIONS } from "@/lib/swipe-config"
@@ -167,16 +167,6 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
                       })
                     }
                   />
-                </div>
-                {/* Swipe hint */}
-                <div className="mt-3 flex items-center justify-between text-xs text-stone-400 select-none">
-                  <span className="flex items-center gap-1">
-                    ← {LEFT_CFG.label}
-                  </span>
-                  <span className="flex items-center gap-1">
-                    <TrashIcon size={11} />
-                    {RIGHT_CFG.label}（準備中）
-                  </span>
                 </div>
               </SwipeCard>
             ))}
