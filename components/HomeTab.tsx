@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useOptimistic, startTransition } from "react"
+import { useState, useOptimistic, startTransition, useCallback } from "react"
 import SwipeCard from "./SwipeCard"
 import StockLevelPopup from "./StockLevelPopup"
 import { recordReport, undoReport } from "@/app/actions"
@@ -23,6 +23,7 @@ export interface HomeItem {
 interface HomeTabProps {
   items: HomeItem[]
   onShowUndo: (config: UndoConfig) => void
+  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string) => void
 }
 
 function daysLabel(days: number | null) {
@@ -54,13 +55,13 @@ function ConfidenceBadge({ level }: { level: ConfidenceLevel }) {
   )
 }
 
-// Left = 買い物リストへ (amber), Right = まだ大丈夫 (teal)
+// Left = 買い物リストへ, Right = まだ大丈夫
 const LEFT_CFG = SWIPE_ACTIONS.toBuyList
 const RIGHT_CFG = SWIPE_ACTIONS.toStillOk
 
 import { LayersIcon } from "./icons"
 
-export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
+export default function HomeTab({ items, onShowUndo, onCardDragProgress }: HomeTabProps) {
   const [popupItemId, setPopupItemId] = useState<string | null>(null)
 
   type HomeAction = { type: "remove"; id: string } | { type: "addBack"; item: HomeItem }
@@ -74,6 +75,14 @@ export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
   )
 
   const popupItem = popupItemId ? items.find((i) => i.id === popupItemId) : null
+
+  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null) => {
+    onCardDragProgress(
+      p,
+      dir,
+      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : ""
+    )
+  }, [onCardDragProgress])
 
   function handleSwipeLeft(itemId: string) {
     const originalItem = items.find((i) => i.id === itemId)
@@ -136,17 +145,16 @@ export default function HomeTab({ items, onShowUndo }: HomeTabProps) {
 
   return (
     <>
-      <div className="px-4 pt-4 pb-6 space-y-3">
+      <div className="relative z-[2] px-4 pt-4 pb-6 space-y-3">
         <p className="text-xs font-medium text-stone-400 uppercase tracking-wider px-1">
           そろそろ切れそう — {optimisticItems.length}件
         </p>
         {optimisticItems.map((item) => (
           <SwipeCard
             key={item.id}
-            leftConfig={LEFT_CFG}
-            rightConfig={RIGHT_CFG}
             onSwipeLeft={() => handleSwipeLeft(item.id)}
             onSwipeRight={() => handleRightSwipe(item.id)}
+            onDragProgress={handleDragProgress}
           >
             <div className="flex items-start justify-between gap-2 mb-3">
               <div className="min-w-0">

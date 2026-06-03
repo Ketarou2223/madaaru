@@ -13,6 +13,15 @@ import { signOutAction } from "@/app/actions"
 import type { HomeItem } from "./HomeTab"
 import type { ShoppingItem, SuggestedItem } from "./ShoppingTab"
 import type { StillOkItem } from "./StillOkTab"
+import {
+  ZONE_LEFT_COLOR,
+  ZONE_RIGHT_COLOR,
+  ZONE_LABEL_COLOR,
+  ZONE_EDGE_PEEK_PX,
+  ZONE_EDGE_PEEK_OPACITY,
+  ZONE_FRONT_FEATHER_PX,
+  ZONE_LABEL_SHOW_PX,
+} from "@/lib/swipe-config"
 
 interface TabShellProps {
   homeItems: HomeItem[]
@@ -30,9 +39,6 @@ const PHYSICAL_LOGICAL: readonly LogicalTab[] = ["stillok", "shopping", "home", 
 const CANONICAL_IDX: Record<LogicalTab, number> = { shopping: 1, home: 2, stillok: 3 }
 
 // 7-item tab strip (5 physical slots + 1 extra on each end).
-// Clone positions (physicalIdx 0/4) now show identical neighbors to real positions (3/1),
-// making the infinite-loop jump completely invisible in the tab bar.
-// Order follows the circular sequence home→stillok→shopping→home→...
 const PHYSICAL_TAB_ITEMS: readonly LogicalTab[] = ["home", "stillok", "shopping", "home", "stillok", "shopping", "home"]
 
 const TAB_DEFS = [
@@ -44,11 +50,11 @@ const TAB_DEFS = [
 const SWIPE_THRESHOLD = 50
 
 // Each tab item occupies 1/3 of the viewport width.
-// 5 items total → strip is 5/3 ≈ 166.67vw wide.
-// translateX = (1 − physicalIdx) × ITEM_VW vw + dragOffset/3 px
-//   → item at physicalIdx lands at [ITEM_VW, 2×ITEM_VW) vw = center third of screen.
-// Panels move at full speed (100vw/slot); tab items at 1/3 speed (33.33vw/slot).
 const ITEM_VW = 100 / 3
+
+// Card drag state reported by any active SwipeCard via onDragProgress.
+type CardDrag = { p: number; dir: "left" | "right" | null; label: string }
+const DRAG_IDLE: CardDrag = { p: 0, dir: null, label: "" }
 
 export default function TabShell({
   homeItems,
@@ -61,16 +67,11 @@ export default function TabShell({
   const [isJumping, setIsJumping] = useState(false)
   const [undoConfig, setUndoConfig] = useState<UndoConfig | null>(null)
   const [settingsOpen, setSettingsOpen] = useState(false)
+  const [cardDrag, setCardDrag] = useState<CardDrag>(DRAG_IDLE)
 
-  // Synchronously updated before setState so rapid-swipe handlers always read latest idx.
   const physicalIdxRef = useRef(2)
   const undoTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
-  // If a tap fires while we're on a clone (mid-swipe), store the target here and
-  // apply it once isJumping clears (after the instant clone→canonical snap).
   const pendingNavRef = useRef<number | null>(null)
-
-  // tabBarRef: touch listeners for tab-switching attach here directly.
-  // Since the element IS the tab bar, no Y-coordinate check is needed.
   const tabBarRef = useRef<HTMLDivElement>(null)
 
   const tbStartX = useRef(0)
@@ -79,7 +80,6 @@ export default function TabShell({
   const tbDragOffRef = useRef(0)
   const tbDragging = useRef(false)
 
-  // Only route through this helper — it clamps [0,4] and syncs ref before setState.
   const goToPhysical = useCallback((n: number) => {
     const clamped = Math.max(0, Math.min(4, n))
     physicalIdxRef.current = clamped
@@ -89,11 +89,9 @@ export default function TabShell({
   const navigateToTab = useCallback((tab: LogicalTab) => {
     const target = CANONICAL_IDX[tab]
     const cur = physicalIdxRef.current
-    // Canonical equiv of cur (in case we're on a clone mid-transition)
     const curCanonical = cur === 0 ? 3 : cur === 4 ? 1 : cur
 
     if (curCanonical === target) {
-      // Already displaying the target tab — snap clone back to canonical if needed
       if (cur !== curCanonical) {
         setIsJumping(true)
         goToPhysical(curCanonical)
@@ -102,17 +100,12 @@ export default function TabShell({
       return
     }
 
-    // Shortest circular path on the ring of 3 canonical slots (1=shopping, 2=home, 3=stillok).
-    // dist ∈ {-1, +1}; going through the boundary lands on a clone (0 or 4),
-    // and handlePanelTransitionEnd will do the invisible jump — same as swipe.
-    let dist = target - curCanonical          // ±1 or ±2
-    if (dist > 1) dist -= 3                   // +2 → -1 (left through clone 0)
-    if (dist < -1) dist += 3                  // -2 → +1 (right through clone 4)
-    const physicalTarget = curCanonical + dist // may be 0 or 4
+    let dist = target - curCanonical
+    if (dist > 1) dist -= 3
+    if (dist < -1) dist += 3
+    const physicalTarget = curCanonical + dist
 
     if (cur !== curCanonical) {
-      // We're on a clone (swipe animation still in flight): snap to canonical first,
-      // then trigger the real animation once isJumping clears.
       setIsJumping(true)
       goToPhysical(curCanonical)
       pendingNavRef.current = physicalTarget
@@ -139,8 +132,6 @@ export default function TabShell({
 
   useEffect(() => () => { if (undoTimerRef.current) clearTimeout(undoTimerRef.current) }, [])
 
-  // When a panel transition lands on a clone slot, jump instantaneously to the real slot.
-  // Tab item strip follows automatically because both use physicalIdx state.
   function handlePanelTransitionEnd(e: React.TransitionEvent) {
     if (e.propertyName !== "transform") return
     const cur = physicalIdxRef.current
@@ -150,8 +141,6 @@ export default function TabShell({
     }
   }
 
-  // Re-enable transition after jump paint (double RAF guarantees the frame committed).
-  // Also fires any tap navigation that was queued while we were on a clone.
   useEffect(() => {
     if (!isJumping) {
       if (pendingNavRef.current !== null) {
@@ -164,10 +153,6 @@ export default function TabShell({
     const raf = requestAnimationFrame(() => requestAnimationFrame(() => setIsJumping(false)))
     return () => cancelAnimationFrame(raf)
   }, [isJumping, goToPhysical])
-
-  // --- Tab bar touch handlers (attached to tabBarRef, not the panel area) ---
-  // Horizontal drag → tab switch. Vertical → ignored (nothing to scroll in tab bar).
-  // SwipeCard's native stopPropagation keeps card touches in the panel area.
 
   const handleTabTouchStart = useCallback((e: TouchEvent) => {
     tbStartX.current = e.touches[0].clientX
@@ -226,25 +211,142 @@ export default function TabShell({
     }
   }, [handleTabTouchStart, handleTabTouchMove, handleTabTouchEnd])
 
+  // Stable callback passed to each tab → each SwipeCard's onDragProgress.
+  const handleCardDragProgress = useCallback(
+    (p: number, dir: "left" | "right" | null, label: string) => {
+      setCardDrag(dir === null ? DRAG_IDLE : { p, dir, label })
+    },
+    []
+  )
+
   const shoppingBadge = shoppingItems.length + suggestedItems.length
   const homeItemCount = homeItems.length
   const activeLogical = PHYSICAL_LOGICAL[physicalIdx]
 
-  // Both strips share the same transition timing. Disabled during jump (clone seam) or drag.
   const stripTransition = isJumping || tbDragging.current
     ? "none"
     : "transform 0.3s cubic-bezier(0.25, 0.1, 0.25, 1)"
 
-  // Tab item strip translateX: centers the item at physicalIdx in the screen's middle third.
-  // Strip has 7 items; the center item for physicalIdx n is at strip index n+1, so
-  // translateX = -(n+1)*ITEM_VW + ITEM_VW = -n*ITEM_VW (the +ITEM_VW for the leading extra item cancels out).
-  // During drag, moves at 1/3 the speed of panels (dragOffset px → dragOffset/3 px).
   const tabStripTranslate = `translateX(calc(${-physicalIdx * ITEM_VW}vw + ${dragOffset / 3}px))`
+
+  // --- Background zone geometry ---
+  const { p: dp, dir: dd, label: dl } = cardDrag
+  const isLeft  = dd === "left"
+  const isRight = dd === "right"
+
+  // Zone width: ZONE_EDGE_PEEK_PX at rest, expands to 100vw at p=1.
+  const leftWidthVal  = isLeft  ? `calc(${ZONE_EDGE_PEEK_PX}px + ${dp} * (100vw - ${ZONE_EDGE_PEEK_PX}px))` : `${ZONE_EDGE_PEEK_PX}px`
+  const rightWidthVal = isRight ? `calc(${ZONE_EDGE_PEEK_PX}px + ${dp} * (100vw - ${ZONE_EDGE_PEEK_PX}px))` : `${ZONE_EDGE_PEEK_PX}px`
+
+  // Opacity: active side = 1 at full drag; opposite side recedes.
+  const leftOpacity  = isLeft ? 1 : isRight ? ZONE_EDGE_PEEK_OPACITY * (1 - dp) : ZONE_EDGE_PEEK_OPACITY
+  const rightOpacity = isRight ? 1 : isLeft  ? ZONE_EDGE_PEEK_OPACITY * (1 - dp) : ZONE_EDGE_PEEK_OPACITY
+
+  // Background: feathered leading edge during drag, solid at commit (p=1), peek gradient at rest.
+  const leftBg = isLeft && dp < 1
+    ? `linear-gradient(to right, ${ZONE_LEFT_COLOR} calc(100% - ${ZONE_FRONT_FEATHER_PX}px), transparent 100%)`
+    : isLeft
+    ? ZONE_LEFT_COLOR
+    : `linear-gradient(to right, ${ZONE_LEFT_COLOR}, transparent)`
+
+  const rightBg = isRight && dp < 1
+    ? `linear-gradient(to left, ${ZONE_RIGHT_COLOR} calc(100% - ${ZONE_FRONT_FEATHER_PX}px), transparent 100%)`
+    : isRight
+    ? ZONE_RIGHT_COLOR
+    : `linear-gradient(to left, ${ZONE_RIGHT_COLOR}, transparent)`
+
+  // Smooth snap-back when released; instant follow during active drag.
+  const zoneTransition = dd === null
+    ? "width 0.25s ease, opacity 0.2s ease"
+    : "none"
+
+  // Show label once zone is wide enough for text to sit in the solid area.
+  const showLeftLabel  = isLeft  && dp > 0
+  const showRightLabel = isRight && dp > 0
 
   return (
     <div className="flex flex-col" style={{ height: "100dvh" }}>
+
+      {/*
+        Background swipe zones — position:fixed, z-1.
+        Cards are position:relative z-10 (SwipeCard outer wrapper), so they sit above these zones.
+        Header and tab bar are z-30, covering the zones when they expand to full screen.
+      */}
+      <div
+        aria-hidden
+        className="pointer-events-none"
+        style={{
+          position: "fixed",
+          top: 0,
+          bottom: 0,
+          left: 0,
+          zIndex: 1,
+          width: leftWidthVal,
+          background: leftBg,
+          opacity: leftOpacity,
+          transition: zoneTransition,
+          overflow: "hidden",
+        }}
+      >
+        {showLeftLabel && (
+          <div
+            className="absolute inset-y-0 flex items-center"
+            style={{
+              left: "1rem",
+              right: `${ZONE_FRONT_FEATHER_PX + 8}px`,
+              justifyContent: "flex-end",
+              minWidth: ZONE_LABEL_SHOW_PX,
+            }}
+          >
+            <span
+              className="text-sm font-bold whitespace-nowrap"
+              style={{ color: ZONE_LABEL_COLOR }}
+            >
+              {dl}
+            </span>
+          </div>
+        )}
+      </div>
+
+      <div
+        aria-hidden
+        className="pointer-events-none"
+        style={{
+          position: "fixed",
+          top: 0,
+          bottom: 0,
+          right: 0,
+          zIndex: 1,
+          width: rightWidthVal,
+          background: rightBg,
+          opacity: rightOpacity,
+          transition: zoneTransition,
+          overflow: "hidden",
+        }}
+      >
+        {showRightLabel && (
+          <div
+            className="absolute inset-y-0 flex items-center"
+            style={{
+              right: "1rem",
+              left: `${ZONE_FRONT_FEATHER_PX + 8}px`,
+              justifyContent: "flex-start",
+              minWidth: ZONE_LABEL_SHOW_PX,
+            }}
+          >
+            <span
+              className="text-sm font-bold whitespace-nowrap"
+              style={{ color: ZONE_LABEL_COLOR }}
+            >
+              {dl}
+            </span>
+          </div>
+        )}
+      </div>
+
+      {/* Header — z-30 covers the zones when they expand */}
       <header
-        className="shrink-0 bg-white/95 backdrop-blur border-b border-stone-200 px-5 py-3"
+        className="relative z-30 shrink-0 bg-white/95 backdrop-blur border-b border-stone-200 px-5 py-3"
         style={{ paddingTop: "max(0.75rem, env(safe-area-inset-top))" }}
       >
         <div className="flex items-center justify-between">
@@ -272,32 +374,32 @@ export default function TabShell({
           onTransitionEnd={handlePanelTransitionEnd}
         >
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
-            <StillOkTab items={stillOkItems} onShowUndo={showUndo} />
+            <StillOkTab items={stillOkItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
-            <ShoppingTab items={shoppingItems} suggested={suggestedItems} onShowUndo={showUndo} />
+            <ShoppingTab items={shoppingItems} suggested={suggestedItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
-            <HomeTab items={homeItems} onShowUndo={showUndo} />
+            <HomeTab items={homeItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
-            <StillOkTab items={stillOkItems} onShowUndo={showUndo} />
+            <StillOkTab items={stillOkItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
-            <ShoppingTab items={shoppingItems} suggested={suggestedItems} onShowUndo={showUndo} />
+            <ShoppingTab items={shoppingItems} suggested={suggestedItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
         </div>
       </div>
 
-      {/* Tab bar: static background + flowing item strip + center marker (never moves) */}
+      {/* Tab bar — z-30 covers the zones */}
       <div
         ref={tabBarRef}
-        className="shrink-0 bg-white border-t border-stone-200"
+        className="relative z-30 shrink-0 bg-white border-t border-stone-200"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
         <div className="relative h-14 overflow-hidden">
 
-          {/* Flowing tab item strip — same 5-slot order as panels, moves at 1/3 speed */}
+          {/* Flowing tab item strip */}
           <div
             className="flex h-full"
             style={{
@@ -338,9 +440,7 @@ export default function TabShell({
             })}
           </div>
 
-          {/* Center marker — absolutely positioned, never participates in any transform.
-              Spans the middle third of the screen [ITEM_VW, 2×ITEM_VW vw).
-              pointer-events-none so taps pass through to the tab item buttons. */}
+          {/* Center marker — absolutely positioned, never transforms */}
           <div
             className="absolute inset-y-0 pointer-events-none"
             style={{ left: `${ITEM_VW}vw`, width: `${ITEM_VW}vw` }}
@@ -351,7 +451,7 @@ export default function TabShell({
         </div>
       </div>
 
-      {/* FAB: fixed above tab bar (h-14 + safe-area) */}
+      {/* FAB: fixed above tab bar */}
       <AddItemModal />
 
       {undoConfig && (

@@ -1,6 +1,6 @@
 "use client"
 
-import { startTransition, useOptimistic } from "react"
+import { startTransition, useOptimistic, useCallback } from "react"
 import SwipeCard from "./SwipeCard"
 import BuyModal from "./BuyModal"
 import { recordReport, recordPurchase, undoReport, undoPurchase } from "@/app/actions"
@@ -30,6 +30,7 @@ interface ShoppingTabProps {
   items: ShoppingItem[]
   suggested: SuggestedItem[]
   onShowUndo: (config: UndoConfig) => void
+  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string) => void
 }
 
 function daysHint(days: number | null) {
@@ -44,11 +45,11 @@ function todayString() {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`
 }
 
-// Left = 買った (teal), Right = 削除 (rose, stage-3 action — preview only)
+// Left = 買った, Right = 削除 (stage-3, onSwipeRight remains undefined for now)
 const LEFT_CFG = SWIPE_ACTIONS.bought
 const RIGHT_CFG = SWIPE_ACTIONS.deleteItem
 
-export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTabProps) {
+export default function ShoppingTab({ items, suggested, onShowUndo, onCardDragProgress }: ShoppingTabProps) {
   type SuggestedAction = { type: "remove"; id: string } | { type: "addBack"; item: SuggestedItem }
 
   const [optimisticSuggested, dispatchSuggested] = useOptimistic(
@@ -69,7 +70,14 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
     }
   )
 
-  // Left swipe: quick buy (normal qty, today) — no modal
+  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null) => {
+    onCardDragProgress(
+      p,
+      dir,
+      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : ""
+    )
+  }, [onCardDragProgress])
+
   function handleSwipeLeft(item: ShoppingItem) {
     startTransition(async () => {
       dispatchItems({ type: "remove", id: item.id })
@@ -121,7 +129,7 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
   }
 
   return (
-    <div className="px-4 pt-4 pb-6 space-y-6">
+    <div className="relative z-[2] px-4 pt-4 pb-6 space-y-6">
       {optimisticItems.length > 0 && (
         <section>
           <p className="text-xs font-medium text-stone-400 uppercase tracking-wider px-1 mb-3">
@@ -131,10 +139,9 @@ export default function ShoppingTab({ items, suggested, onShowUndo }: ShoppingTa
             {optimisticItems.map((item) => (
               <SwipeCard
                 key={item.id}
-                leftConfig={LEFT_CFG}
-                rightConfig={RIGHT_CFG}
                 onSwipeLeft={() => handleSwipeLeft(item)}
-                // Right swipe (削除) preview only in stage 2 — no onSwipeRight
+                onDragProgress={handleDragProgress}
+                // Right swipe (削除) preview only — no onSwipeRight yet
                 cardClassName={
                   item.lastReportKind === "out"
                     ? "rounded-2xl border border-rose-200 bg-rose-50 shadow-sm"

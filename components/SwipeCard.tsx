@@ -4,23 +4,19 @@ import { useRef, useState, useEffect, useCallback } from "react"
 import {
   SWIPE_COMMIT_PX,
   SWIPE_HAPTIC_MS,
+  CARD_FOLLOW_FACTOR,
+  CARD_MAX_TILT_DEG,
   ZONE_LEFT_COLOR,
   ZONE_RIGHT_COLOR,
-  ZONE_LABEL_COLOR,
-  ZONE_RESTING_PX,
-  ZONE_MAX_PX,
-  ZONE_OPACITY_RESTING,
-  ZONE_OPACITY_ACTIVE,
   CARD_TINT_MAX_OPACITY,
-  type SwipeActionConfig,
 } from "@/lib/swipe-config"
 
 export interface SwipeCardProps {
   children: React.ReactNode
   onSwipeLeft?: () => void
   onSwipeRight?: () => void
-  leftConfig: SwipeActionConfig
-  rightConfig: SwipeActionConfig
+  /** Called each frame during horizontal drag with progress [0,1] and direction, or (0, null) on snap-back/exit. */
+  onDragProgress?: (p: number, dir: "left" | "right" | null) => void
   /** Override the card wrapper's className (default: white card with stone border) */
   cardClassName?: string
 }
@@ -29,8 +25,7 @@ export default function SwipeCard({
   children,
   onSwipeLeft,
   onSwipeRight,
-  leftConfig,
-  rightConfig,
+  onDragProgress,
   cardClassName = "rounded-2xl border border-stone-200 bg-white shadow-sm",
 }: SwipeCardProps) {
   const cardRef = useRef<HTMLDivElement>(null)
@@ -40,6 +35,10 @@ export default function SwipeCard({
   const dragXRef = useRef(0)
   const exitingRef = useRef(false)
   const hasFiredHaptic = useRef(false)
+
+  // Use a ref so the stable touch handlers always call the latest callback without re-registering.
+  const onDragProgressRef = useRef(onDragProgress)
+  useEffect(() => { onDragProgressRef.current = onDragProgress }, [onDragProgress])
 
   const [dragX, setDragX] = useState(0)
   const [isExiting, setIsExiting] = useState(false)
@@ -71,6 +70,9 @@ export default function SwipeCard({
       e.preventDefault()
       dragXRef.current = dx
       setDragX(dx)
+      const p = Math.min(Math.abs(dx) / SWIPE_COMMIT_PX, 1)
+      const dir = dx < 0 ? "left" as const : "right" as const
+      onDragProgressRef.current?.(p, dir)
       if (Math.abs(dx) >= SWIPE_COMMIT_PX && !hasFiredHaptic.current) {
         navigator.vibrate?.(SWIPE_HAPTIC_MS)
         hasFiredHaptic.current = true
@@ -91,14 +93,17 @@ export default function SwipeCard({
     if (dx < -SWIPE_COMMIT_PX && onSwipeLeft) {
       exitingRef.current = true
       exitDirRef.current = "left"
+      onDragProgressRef.current?.(1, "left")  // lock zone at full during fly-off
       setIsExiting(true)
       setDragX(-1500)
     } else if (dx > SWIPE_COMMIT_PX && onSwipeRight) {
       exitingRef.current = true
       exitDirRef.current = "right"
+      onDragProgressRef.current?.(1, "right")
       setIsExiting(true)
       setDragX(1500)
     } else {
+      onDragProgressRef.current?.(0, null)
       setDragX(0)
     }
   }, [onSwipeLeft, onSwipeRight])
@@ -122,107 +127,40 @@ export default function SwipeCard({
     const t = setTimeout(() => {
       if (dir === "left") onSwipeLeft?.()
       else onSwipeRight?.()
+      onDragProgressRef.current?.(0, null)
     }, 280)
     return () => clearTimeout(t)
   }, [isExiting, onSwipeLeft, onSwipeRight])
 
   const absDx = Math.abs(dragX)
-  const dragProgress = Math.min(absDx / SWIPE_COMMIT_PX, 1) // 0→1
+  const dragProgress = Math.min(absDx / SWIPE_COMMIT_PX, 1)
   const isLeft  = dragX < -8
   const isRight = dragX > 8
 
-  // Zone geometry:
-  //   Left-action zone  → red,  anchored to card's RIGHT edge, grows leftward on left swipe.
-  //   Right-action zone → blue, anchored to card's LEFT edge,  grows rightward on right swipe.
-  // Placing each zone on the card's leading visible edge (the edge that stays on-screen
-  // as the card is dragged in that direction) keeps the zone visible throughout the gesture.
-  const leftZoneWidth = isLeft
-    ? ZONE_RESTING_PX + dragProgress * (ZONE_MAX_PX - ZONE_RESTING_PX)
-    : ZONE_RESTING_PX
-
-  const rightZoneWidth = isRight
-    ? ZONE_RESTING_PX + dragProgress * (ZONE_MAX_PX - ZONE_RESTING_PX)
-    : ZONE_RESTING_PX
-
-  // Active zone ramps up; inactive zone fades slightly to keep focus on active side.
-  const leftZoneOpacity = isLeft
-    ? ZONE_OPACITY_RESTING + dragProgress * (ZONE_OPACITY_ACTIVE - ZONE_OPACITY_RESTING)
-    : isRight
-    ? ZONE_OPACITY_RESTING * (1 - dragProgress * 0.5)
-    : ZONE_OPACITY_RESTING
-
-  const rightZoneOpacity = isRight
-    ? ZONE_OPACITY_RESTING + dragProgress * (ZONE_OPACITY_ACTIVE - ZONE_OPACITY_RESTING)
-    : isLeft
-    ? ZONE_OPACITY_RESTING * (1 - dragProgress * 0.5)
-    : ZONE_OPACITY_RESTING
-
-  // Show the label once the zone is wide enough to start revealing text.
-  const showLeftLabel  = isLeft  && dragProgress > 0.1
-  const showRightLabel = isRight && dragProgress > 0.1
-
-  // Full-card color wash in the swipe direction; deepens toward CARD_TINT_MAX_OPACITY.
+  // Full-card tint in the swipe direction; deepens toward CARD_TINT_MAX_OPACITY at commit.
   const tintColor   = isLeft ? ZONE_LEFT_COLOR : ZONE_RIGHT_COLOR
   const tintOpacity = dragProgress * CARD_TINT_MAX_OPACITY
 
-  // Subtle card tilt: ±3° at full commit
-  const rotation = Math.sign(dragX) * Math.min(dragProgress * 3, 3)
+  // Card moves at CARD_FOLLOW_FACTOR of the raw drag distance.
+  const visualX  = dragX * CARD_FOLLOW_FACTOR
+  const rotation = Math.sign(dragX) * Math.min(dragProgress * CARD_MAX_TILT_DEG, CARD_MAX_TILT_DEG)
 
   return (
-    <div
-      ref={cardRef}
-      className="relative select-none touch-pan-y"
-      style={{
-        transform: `translateX(${dragX}px) rotate(${rotation}deg)`,
-        transition: isExiting
-          ? "transform 0.28s ease-in"
-          : dragX === 0
-          ? "transform 0.25s ease"
-          : "none",
-        willChange: "transform",
-      }}
-    >
-      <div className={`${cardClassName} overflow-hidden relative`}>
-
-        {/* Left-action zone — red strip at card's right edge, grows leftward */}
-        <div
-          className="absolute top-0 right-0 bottom-0 z-20 flex items-center justify-end overflow-hidden pointer-events-none"
-          style={{
-            width: leftZoneWidth,
-            background: ZONE_LEFT_COLOR,
-            opacity: leftZoneOpacity,
-          }}
-        >
-          {showLeftLabel && (
-            <span
-              className="whitespace-nowrap px-2 text-sm font-bold"
-              style={{ color: ZONE_LABEL_COLOR }}
-            >
-              {leftConfig.label}
-            </span>
-          )}
-        </div>
-
-        {/* Right-action zone — blue strip at card's left edge, grows rightward */}
-        <div
-          className="absolute top-0 left-0 bottom-0 z-20 flex items-center justify-start overflow-hidden pointer-events-none"
-          style={{
-            width: rightZoneWidth,
-            background: ZONE_RIGHT_COLOR,
-            opacity: rightZoneOpacity,
-          }}
-        >
-          {showRightLabel && (
-            <span
-              className="whitespace-nowrap px-2 text-sm font-bold"
-              style={{ color: ZONE_LABEL_COLOR }}
-            >
-              {rightConfig.label}
-            </span>
-          )}
-        </div>
-
-        {/* Full-card tint — color wash behind zones, in front of content */}
+    // z-10 ensures cards stack above the fixed background zones (z-1) in TabShell.
+    <div ref={cardRef} className="relative z-10 select-none touch-pan-y">
+      <div
+        className={`${cardClassName} overflow-hidden relative`}
+        style={{
+          transform: `translateX(${visualX}px) rotate(${rotation}deg)`,
+          transition: isExiting
+            ? "transform 0.28s ease-in"
+            : dragX === 0
+            ? "transform 0.25s ease"
+            : "none",
+          willChange: "transform",
+        }}
+      >
+        {/* Full-card color wash in the swipe direction */}
         {tintOpacity > 0 && (
           <div
             className="absolute inset-0 z-10 pointer-events-none"
@@ -230,11 +168,9 @@ export default function SwipeCard({
           />
         )}
 
-        {/* Card content */}
         <div className="relative z-0 px-5 py-4">
           {children}
         </div>
-
       </div>
     </div>
   )

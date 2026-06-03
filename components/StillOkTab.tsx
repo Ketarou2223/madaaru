@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useOptimistic, startTransition } from "react"
+import { useState, useOptimistic, startTransition, useCallback } from "react"
 import { createPortal } from "react-dom"
 import SwipeCard from "./SwipeCard"
 import BuyModal from "./BuyModal"
@@ -80,16 +80,17 @@ function stockLevelDot(level: "plenty" | "normal" | "low" | null) {
   )
 }
 
-// Left = そろそろ (amber), Right = 買い物リストへ (amber)
+// Left = そろそろ (pin to home), Right = 買い物リストへ
 const LEFT_CFG = SWIPE_ACTIONS.sorosoro
 const RIGHT_CFG = SWIPE_ACTIONS.toBuyList
 
 interface StillOkTabProps {
   items: StillOkItem[]
   onShowUndo: (config: UndoConfig) => void
+  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string) => void
 }
 
-export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
+export default function StillOkTab({ items, onShowUndo, onCardDragProgress }: StillOkTabProps) {
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   type StillOkAction = { type: "remove"; id: string } | { type: "addBack"; item: StillOkItem }
@@ -102,6 +103,14 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
     }
   )
 
+  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null) => {
+    onCardDragProgress(
+      p,
+      dir,
+      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : ""
+    )
+  }, [onCardDragProgress])
+
   function handleDeleteConfirm() {
     if (!deleteConfirmId) return
     const id = deleteConfirmId
@@ -112,7 +121,6 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
     })
   }
 
-  // Left swipe: "そろそろ…" → ホームへピン留め
   function handleSwipeLeft(item: StillOkItem) {
     startTransition(async () => {
       dispatchOptimistic({ type: "remove", id: item.id })
@@ -130,7 +138,6 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
     })
   }
 
-  // Right swipe: "買い物リストへ"
   function handleSwipeRight(item: StillOkItem) {
     startTransition(async () => {
       dispatchOptimistic({ type: "remove", id: item.id })
@@ -168,7 +175,7 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
 
   return (
     <>
-      <div className="px-4 pt-4 pb-6">
+      <div className="relative z-[2] px-4 pt-4 pb-6">
         <p className="text-xs font-medium text-stone-400 uppercase tracking-wider px-1 mb-3">
           所持品 — {optimisticItems.length}件
         </p>
@@ -176,10 +183,9 @@ export default function StillOkTab({ items, onShowUndo }: StillOkTabProps) {
           {optimisticItems.map((item) => (
             <SwipeCard
               key={item.id}
-              leftConfig={LEFT_CFG}
-              rightConfig={RIGHT_CFG}
               onSwipeLeft={() => handleSwipeLeft(item)}
               onSwipeRight={() => handleSwipeRight(item)}
+              onDragProgress={handleDragProgress}
             >
               <div className="flex items-start justify-between gap-2 mb-3">
                 <div className="min-w-0 flex-1">
