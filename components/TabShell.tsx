@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useRef, useEffect, useCallback } from "react"
+import { useState, useRef, useEffect, useCallback, useOptimistic, startTransition } from "react"
 import { createPortal } from "react-dom"
 import HomeTab from "./HomeTab"
 import ShoppingTab from "./ShoppingTab"
@@ -8,20 +8,46 @@ import StillOkTab from "./StillOkTab"
 import AddItemModal from "./AddItemModal"
 import UndoToast from "./UndoToast"
 import type { UndoConfig } from "./UndoToast"
-import { ShoppingCartIcon, LayersIcon, PackageIcon, LogOutIcon, SettingsIcon, XIcon } from "./icons"
-import { signOutAction } from "@/app/actions"
+import { ShoppingCartIcon, LayersIcon, PackageIcon, LogOutIcon, SettingsIcon, XIcon, CheckIcon, TrashIcon } from "./icons"
+import { addItem, signOutAction } from "@/app/actions"
 import type { HomeItem } from "./HomeTab"
 import type { ShoppingItem, SuggestedItem } from "./ShoppingTab"
 import type { StillOkItem } from "./StillOkTab"
 import {
-  ZONE_LEFT_COLOR,
-  ZONE_RIGHT_COLOR,
   ZONE_LABEL_COLOR,
   ZONE_EDGE_PEEK_PX,
   ZONE_EDGE_PEEK_OPACITY,
   ZONE_FRONT_FEATHER_PX,
   ZONE_LABEL_SHOW_PX,
+  WAIT_FILL,
 } from "@/lib/swipe-config"
+
+// Mist gradients — layered radials + directional linear to simulate fog rolling in from the edge.
+// The leading edge fades to transparent; the dense area (screen-edge side) is readable.
+const MIST_LEFT =
+  "radial-gradient(ellipse 110% 65% at -10% 50%, rgba(226,75,74,0.72) 0%, transparent 65%)," +
+  "radial-gradient(ellipse 70% 55% at 0% 20%, rgba(226,75,74,0.40) 0%, transparent 100%)," +
+  "radial-gradient(ellipse 70% 55% at 5% 80%, rgba(226,75,74,0.36) 0%, transparent 100%)," +
+  "linear-gradient(to right, rgba(226,75,74,0.90) 0%, rgba(226,75,74,0.70) 18%, rgba(226,75,74,0.35) 55%, transparent 100%)"
+
+const MIST_RIGHT =
+  "radial-gradient(ellipse 110% 65% at 110% 50%, rgba(55,138,221,0.72) 0%, transparent 65%)," +
+  "radial-gradient(ellipse 70% 55% at 100% 20%, rgba(55,138,221,0.40) 0%, transparent 100%)," +
+  "radial-gradient(ellipse 70% 55% at 95% 80%, rgba(55,138,221,0.36) 0%, transparent 100%)," +
+  "linear-gradient(to left, rgba(55,138,221,0.90) 0%, rgba(55,138,221,0.70) 18%, rgba(55,138,221,0.35) 55%, transparent 100%)"
+
+const PEEK_LEFT  = "linear-gradient(to right, rgba(226,75,74,0.30), transparent)"
+const PEEK_RIGHT = "linear-gradient(to left, rgba(55,138,221,0.30), transparent)"
+
+// Map action label → icon component for the waiting-state zone display.
+function ZoneIcon({ label, size }: { label: string; size: number }) {
+  if (label === "買い物リストへ") return <ShoppingCartIcon size={size} />
+  if (label === "まだ大丈夫")    return <PackageIcon size={size} />
+  if (label === "そろそろ…")    return <LayersIcon size={size} />
+  if (label === "買った ✓")     return <CheckIcon size={size} />
+  if (label === "削除")          return <TrashIcon size={size} />
+  return null
+}
 
 interface TabShellProps {
   homeItems: HomeItem[]
@@ -53,8 +79,8 @@ const SWIPE_THRESHOLD = 50
 const ITEM_VW = 100 / 3
 
 // Card drag state reported by any active SwipeCard via onDragProgress.
-type CardDrag = { p: number; dir: "left" | "right" | null; label: string }
-const DRAG_IDLE: CardDrag = { p: 0, dir: null, label: "" }
+type CardDrag = { p: number; dir: "left" | "right" | null; label: string; waiting: boolean }
+const DRAG_IDLE: CardDrag = { p: 0, dir: null, label: "", waiting: false }
 
 export default function TabShell({
   homeItems,
@@ -114,6 +140,31 @@ export default function TabShell({
     }
     setDragOffset(0)
   }, [goToPhysical])
+
+  const [optimisticNewItems, addOptimisticItem] = useOptimistic<StillOkItem[], StillOkItem>(
+    [],
+    (state, item) => [...state, item]
+  )
+
+  function handleAddItem(name: string, category: string | null) {
+    const fakeItem: StillOkItem = {
+      id: `optimistic-${Date.now()}`,
+      name,
+      category,
+      prediction: { nextDepleteDate: null, daysRemaining: null, confidence: "学習中" },
+      lastStockLevel: null,
+    }
+    startTransition(async () => {
+      addOptimisticItem(fakeItem)
+      const fd = new FormData()
+      fd.set("name", name)
+      if (category) fd.set("category", category)
+      const result = await addItem(fd)
+      if ("error" in result) {
+        showUndo({ message: result.error })
+      }
+    })
+  }
 
   function showUndo(config: UndoConfig) {
     if (undoTimerRef.current) clearTimeout(undoTimerRef.current)
@@ -213,8 +264,8 @@ export default function TabShell({
 
   // Stable callback passed to each tab → each SwipeCard's onDragProgress.
   const handleCardDragProgress = useCallback(
-    (p: number, dir: "left" | "right" | null, label: string) => {
-      setCardDrag(dir === null ? DRAG_IDLE : { p, dir, label })
+    (p: number, dir: "left" | "right" | null, label: string, waiting?: boolean) => {
+      setCardDrag(dir === null ? DRAG_IDLE : { p, dir, label, waiting: waiting ?? false })
     },
     []
   )
@@ -230,37 +281,29 @@ export default function TabShell({
   const tabStripTranslate = `translateX(calc(${-physicalIdx * ITEM_VW}vw + ${dragOffset / 3}px))`
 
   // --- Background zone geometry ---
-  const { p: dp, dir: dd, label: dl } = cardDrag
+  const { p: dp, dir: dd, label: dl, waiting: dw } = cardDrag
   const isLeft  = dd === "left"
   const isRight = dd === "right"
 
-  // Zone width: ZONE_EDGE_PEEK_PX at rest, expands to 100vw at p=1.
+  // Zone width: edge-peek at rest, expands with drag progress. In waiting state p=WAIT_FILL.
   const leftWidthVal  = isLeft  ? `calc(${ZONE_EDGE_PEEK_PX}px + ${dp} * (100vw - ${ZONE_EDGE_PEEK_PX}px))` : `${ZONE_EDGE_PEEK_PX}px`
   const rightWidthVal = isRight ? `calc(${ZONE_EDGE_PEEK_PX}px + ${dp} * (100vw - ${ZONE_EDGE_PEEK_PX}px))` : `${ZONE_EDGE_PEEK_PX}px`
 
-  // Opacity: active side = 1 at full drag; opposite side recedes.
+  // Opacity: active side = 1; opposite edge recedes during drag.
   const leftOpacity  = isLeft ? 1 : isRight ? ZONE_EDGE_PEEK_OPACITY * (1 - dp) : ZONE_EDGE_PEEK_OPACITY
   const rightOpacity = isRight ? 1 : isLeft  ? ZONE_EDGE_PEEK_OPACITY * (1 - dp) : ZONE_EDGE_PEEK_OPACITY
 
-  // Background: feathered leading edge during drag, solid at commit (p=1), peek gradient at rest.
-  const leftBg = isLeft && dp < 1
-    ? `linear-gradient(to right, ${ZONE_LEFT_COLOR} calc(100% - ${ZONE_FRONT_FEATHER_PX}px), transparent 100%)`
-    : isLeft
-    ? ZONE_LEFT_COLOR
-    : `linear-gradient(to right, ${ZONE_LEFT_COLOR}, transparent)`
+  // Mist background: layered radials during active drag/wait; simple gradient at rest.
+  const leftBg  = isLeft  ? MIST_LEFT  : PEEK_LEFT
+  const rightBg = isRight ? MIST_RIGHT : PEEK_RIGHT
 
-  const rightBg = isRight && dp < 1
-    ? `linear-gradient(to left, ${ZONE_RIGHT_COLOR} calc(100% - ${ZONE_FRONT_FEATHER_PX}px), transparent 100%)`
-    : isRight
-    ? ZONE_RIGHT_COLOR
-    : `linear-gradient(to left, ${ZONE_RIGHT_COLOR}, transparent)`
-
-  // Smooth snap-back when released; instant follow during active drag.
+  // Transition: spring when entering waiting, smooth snap-back at rest, instant during drag.
   const zoneTransition = dd === null
     ? "width 0.25s ease, opacity 0.2s ease"
+    : dw
+    ? `width 0.28s cubic-bezier(0.34, 1.56, 0.64, 1), opacity 0.2s ease`
     : "none"
 
-  // Show label once zone is wide enough for text to sit in the solid area.
   const showLeftLabel  = isLeft  && dp > 0
   const showRightLabel = isRight && dp > 0
 
@@ -269,8 +312,8 @@ export default function TabShell({
 
       {/*
         Background swipe zones — position:fixed, z-1.
-        Cards are position:relative z-10 (SwipeCard outer wrapper), so they sit above these zones.
-        Header and tab bar are z-30, covering the zones when they expand to full screen.
+        Cards are z-10 (above zones). Header and tab bar are z-30 (cover zones at full expansion).
+        pointer-events:none always — tap handling in SwipeCard's document-capture listener.
       */}
       <div
         aria-hidden
@@ -289,22 +332,38 @@ export default function TabShell({
         }}
       >
         {showLeftLabel && (
-          <div
-            className="absolute inset-y-0 flex items-center"
-            style={{
-              left: "1rem",
-              right: `${ZONE_FRONT_FEATHER_PX + 8}px`,
-              justifyContent: "flex-end",
-              minWidth: ZONE_LABEL_SHOW_PX,
-            }}
-          >
-            <span
-              className="text-sm font-bold whitespace-nowrap"
-              style={{ color: ZONE_LABEL_COLOR }}
+          dw ? (
+            // Waiting state — big icon + label centred in the dense (screen-edge) portion
+            <div
+              className="absolute inset-y-0 flex flex-col items-center justify-center gap-3"
+              style={{ left: 0, width: `${WAIT_FILL * 55}%` }}
             >
-              {dl}
-            </span>
-          </div>
+              <div style={{ color: ZONE_LABEL_COLOR }}>
+                <ZoneIcon label={dl} size={44} />
+              </div>
+              <span style={{
+                color: ZONE_LABEL_COLOR,
+                fontSize: "20px",
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                lineHeight: 1,
+                textShadow: "0 1px 6px rgba(0,0,0,0.25)",
+                whiteSpace: "nowrap",
+              }}>
+                {dl}
+              </span>
+            </div>
+          ) : (
+            // Drag-in-progress — small text label (existing behaviour)
+            <div
+              className="absolute inset-y-0 flex items-center"
+              style={{ left: "1rem", right: `${ZONE_FRONT_FEATHER_PX + 8}px`, justifyContent: "flex-end", minWidth: ZONE_LABEL_SHOW_PX }}
+            >
+              <span className="text-sm font-bold whitespace-nowrap" style={{ color: ZONE_LABEL_COLOR }}>
+                {dl}
+              </span>
+            </div>
+          )
         )}
       </div>
 
@@ -325,22 +384,38 @@ export default function TabShell({
         }}
       >
         {showRightLabel && (
-          <div
-            className="absolute inset-y-0 flex items-center"
-            style={{
-              right: "1rem",
-              left: `${ZONE_FRONT_FEATHER_PX + 8}px`,
-              justifyContent: "flex-start",
-              minWidth: ZONE_LABEL_SHOW_PX,
-            }}
-          >
-            <span
-              className="text-sm font-bold whitespace-nowrap"
-              style={{ color: ZONE_LABEL_COLOR }}
+          dw ? (
+            // Waiting state — big icon + label centred in the dense (screen-edge) portion
+            <div
+              className="absolute inset-y-0 flex flex-col items-center justify-center gap-3"
+              style={{ right: 0, width: `${WAIT_FILL * 55}%` }}
             >
-              {dl}
-            </span>
-          </div>
+              <div style={{ color: ZONE_LABEL_COLOR }}>
+                <ZoneIcon label={dl} size={44} />
+              </div>
+              <span style={{
+                color: ZONE_LABEL_COLOR,
+                fontSize: "20px",
+                fontWeight: 700,
+                letterSpacing: "-0.02em",
+                lineHeight: 1,
+                textShadow: "0 1px 6px rgba(0,0,0,0.25)",
+                whiteSpace: "nowrap",
+              }}>
+                {dl}
+              </span>
+            </div>
+          ) : (
+            // Drag-in-progress — small text label
+            <div
+              className="absolute inset-y-0 flex items-center"
+              style={{ right: "1rem", left: `${ZONE_FRONT_FEATHER_PX + 8}px`, justifyContent: "flex-start", minWidth: ZONE_LABEL_SHOW_PX }}
+            >
+              <span className="text-sm font-bold whitespace-nowrap" style={{ color: ZONE_LABEL_COLOR }}>
+                {dl}
+              </span>
+            </div>
+          )
         )}
       </div>
 
@@ -374,7 +449,7 @@ export default function TabShell({
           onTransitionEnd={handlePanelTransitionEnd}
         >
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
-            <StillOkTab items={stillOkItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
+            <StillOkTab items={[...stillOkItems, ...optimisticNewItems]} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
             <ShoppingTab items={shoppingItems} suggested={suggestedItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
@@ -383,7 +458,7 @@ export default function TabShell({
             <HomeTab items={homeItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
-            <StillOkTab items={stillOkItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
+            <StillOkTab items={[...stillOkItems, ...optimisticNewItems]} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
           </div>
           <div className="h-full overflow-y-auto" style={{ width: "20%" }}>
             <ShoppingTab items={shoppingItems} suggested={suggestedItems} onShowUndo={showUndo} onCardDragProgress={handleCardDragProgress} />
@@ -452,7 +527,7 @@ export default function TabShell({
       </div>
 
       {/* FAB: fixed above tab bar */}
-      <AddItemModal />
+      <AddItemModal onAddItem={handleAddItem} />
 
       {undoConfig && (
         <UndoToast

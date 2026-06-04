@@ -23,7 +23,7 @@ export interface HomeItem {
 interface HomeTabProps {
   items: HomeItem[]
   onShowUndo: (config: UndoConfig) => void
-  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string) => void
+  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string, waiting?: boolean) => void
 }
 
 function daysLabel(days: number | null) {
@@ -76,11 +76,12 @@ export default function HomeTab({ items, onShowUndo, onCardDragProgress }: HomeT
 
   const popupItem = popupItemId ? items.find((i) => i.id === popupItemId) : null
 
-  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null) => {
+  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null, waiting?: boolean) => {
     onCardDragProgress(
       p,
       dir,
-      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : ""
+      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : "",
+      waiting
     )
   }, [onCardDragProgress])
 

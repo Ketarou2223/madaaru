@@ -87,7 +87,7 @@ const RIGHT_CFG = SWIPE_ACTIONS.toBuyList
 interface StillOkTabProps {
   items: StillOkItem[]
   onShowUndo: (config: UndoConfig) => void
-  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string) => void
+  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string, waiting?: boolean) => void
 }
 
 export default function StillOkTab({ items, onShowUndo, onCardDragProgress }: StillOkTabProps) {
@@ -103,11 +103,12 @@ export default function StillOkTab({ items, onShowUndo, onCardDragProgress }: St
     }
   )
 
-  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null) => {
+  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null, waiting?: boolean) => {
     onCardDragProgress(
       p,
       dir,
-      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : ""
+      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : "",
+      waiting
     )
   }, [onCardDragProgress])
 

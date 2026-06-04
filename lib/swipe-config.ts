@@ -1,11 +1,28 @@
 // Swipe gesture configuration — single source of truth for thresholds, colors, physics.
 // To tune behavior, edit here only.
 
-// Distance (px) at which a swipe commits and fires its callback.
+// --- ON mode (future): pull-to-commit ---
+// Distance (px) at which a swipe commits and fires its callback (ON mode).
 export const SWIPE_COMMIT_PX = 220
 
-// Haptic pulse duration (ms) fired once when drag first crosses SWIPE_COMMIT_PX.
+// Haptic pulse (ms) fired when drag first crosses SWIPE_COMMIT_PX (ON mode, unused in OFF mode).
 export const SWIPE_HAPTIC_MS = 8
+
+// --- OFF mode (current): Arm-and-Confirm ---
+// Minimum drag distance (px) to enter "waiting" (armed) state on release.
+export const ARM_PX = 60
+
+// Fraction of viewport width the zone fills in waiting state.
+export const WAIT_FILL = 0.66
+
+// Card translateX (px) in waiting state — drifts toward swipe direction.
+export const WAIT_CARD_X = 48
+
+// Card tilt (degrees) in waiting state.
+export const WAIT_CARD_TILT_DEG = 4
+
+// Haptic pulse (ms) fired on confirm tap (OFF mode).
+export const CONFIRM_HAPTIC_MS = 12
 
 // Card visual-follow factor: card translates at this fraction of the raw drag distance.
 export const CARD_FOLLOW_FACTOR = 0.5

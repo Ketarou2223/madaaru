@@ -1,26 +1,27 @@
 "use client"
 
 import { useState, useRef } from "react"
-import { addItem } from "@/app/actions"
 import { PlusIcon, XIcon } from "./icons"
 
-export default function AddItemModal() {
+interface AddItemModalProps {
+  onAddItem: (name: string, category: string | null) => void
+}
+
+export default function AddItemModal({ onAddItem }: AddItemModalProps) {
   const [open, setOpen] = useState(false)
-  const [loading, setLoading] = useState(false)
   const [error, setError] = useState("")
   const formRef = useRef<HTMLFormElement>(null)
 
-  async function handleSubmit(formData: FormData) {
-    setLoading(true)
+  function handleSubmit(e: React.FormEvent<HTMLFormElement>) {
+    e.preventDefault()
+    const fd = new FormData(e.currentTarget)
+    const name = (fd.get("name") as string)?.trim()
+    if (!name) { setError("品名を入力してください"); return }
+    const category = (fd.get("category") as string)?.trim() || null
+    onAddItem(name, category)
+    setOpen(false)
     setError("")
-    const result = await addItem(formData)
-    setLoading(false)
-    if ("error" in result) {
-      setError(result.error)
-    } else {
-      setOpen(false)
-      formRef.current?.reset()
-    }
+    formRef.current?.reset()
   }
 
   return (
@@ -57,7 +58,7 @@ export default function AddItemModal() {
               </button>
             </div>
 
-            <form ref={formRef} action={handleSubmit} className="space-y-4">
+            <form ref={formRef} onSubmit={handleSubmit} className="space-y-4">
               <div>
                 <label className="mb-1.5 block text-sm font-medium text-stone-600">
                   品名 <span className="text-rose-400">*</span>
@@ -98,10 +99,9 @@ export default function AddItemModal() {
                 </button>
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="flex-1 rounded-2xl bg-teal-600 py-3 text-sm font-semibold text-white hover:bg-teal-700 disabled:opacity-50 transition-all active:scale-[0.98]"
+                  className="flex-1 rounded-2xl bg-teal-600 py-3 text-sm font-semibold text-white hover:bg-teal-700 transition-all active:scale-[0.98]"
                 >
-                  {loading ? "追加中…" : "追加する"}
+                  追加する
                 </button>
               </div>
             </form>

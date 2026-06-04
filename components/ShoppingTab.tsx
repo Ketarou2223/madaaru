@@ -30,7 +30,7 @@ interface ShoppingTabProps {
   items: ShoppingItem[]
   suggested: SuggestedItem[]
   onShowUndo: (config: UndoConfig) => void
-  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string) => void
+  onCardDragProgress: (p: number, dir: "left" | "right" | null, label: string, waiting?: boolean) => void
 }
 
 function daysHint(days: number | null) {
@@ -70,11 +70,12 @@ export default function ShoppingTab({ items, suggested, onShowUndo, onCardDragPr
     }
   )
 
-  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null) => {
+  const handleDragProgress = useCallback((p: number, dir: "left" | "right" | null, waiting?: boolean) => {
     onCardDragProgress(
       p,
       dir,
-      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : ""
+      dir === "left" ? LEFT_CFG.label : dir === "right" ? RIGHT_CFG.label : "",
+      waiting
     )
   }, [onCardDragProgress])
 
