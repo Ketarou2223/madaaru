@@ -15,26 +15,18 @@ import type { ShoppingItem, SuggestedItem } from "./ShoppingTab"
 import type { StillOkItem } from "./StillOkTab"
 import {
   ZONE_LABEL_COLOR,
+  ZONE_LEFT_COLOR,
+  ZONE_RIGHT_COLOR,
   ZONE_EDGE_PEEK_PX,
   ZONE_EDGE_PEEK_OPACITY,
   ZONE_FRONT_FEATHER_PX,
-  ZONE_LABEL_SHOW_PX,
-  WAIT_FILL,
+  ZONE_ICON_SIZE_PX,
+  ZONE_LABEL_FONT_SIZE,
 } from "@/lib/swipe-config"
 
-// Mist gradients — layered radials + directional linear to simulate fog rolling in from the edge.
-// The leading edge fades to transparent; the dense area (screen-edge side) is readable.
-const MIST_LEFT =
-  "radial-gradient(ellipse 110% 65% at -10% 50%, rgba(226,75,74,0.72) 0%, transparent 65%)," +
-  "radial-gradient(ellipse 70% 55% at 0% 20%, rgba(226,75,74,0.40) 0%, transparent 100%)," +
-  "radial-gradient(ellipse 70% 55% at 5% 80%, rgba(226,75,74,0.36) 0%, transparent 100%)," +
-  "linear-gradient(to right, rgba(226,75,74,0.90) 0%, rgba(226,75,74,0.70) 18%, rgba(226,75,74,0.35) 55%, transparent 100%)"
-
-const MIST_RIGHT =
-  "radial-gradient(ellipse 110% 65% at 110% 50%, rgba(55,138,221,0.72) 0%, transparent 65%)," +
-  "radial-gradient(ellipse 70% 55% at 100% 20%, rgba(55,138,221,0.40) 0%, transparent 100%)," +
-  "radial-gradient(ellipse 70% 55% at 95% 80%, rgba(55,138,221,0.36) 0%, transparent 100%)," +
-  "linear-gradient(to left, rgba(55,138,221,0.90) 0%, rgba(55,138,221,0.70) 18%, rgba(55,138,221,0.35) 55%, transparent 100%)"
+// Solid zone with a thin feather only at the leading (center-facing) edge.
+const SOLID_LEFT  = `linear-gradient(to right, ${ZONE_LEFT_COLOR} calc(100% - ${ZONE_FRONT_FEATHER_PX}px), rgba(226,75,74,0) 100%)`
+const SOLID_RIGHT = `linear-gradient(to left,  ${ZONE_RIGHT_COLOR} calc(100% - ${ZONE_FRONT_FEATHER_PX}px), rgba(55,138,221,0) 100%)`
 
 const PEEK_LEFT  = "linear-gradient(to right, rgba(226,75,74,0.30), transparent)"
 const PEEK_RIGHT = "linear-gradient(to left, rgba(55,138,221,0.30), transparent)"
@@ -293,9 +285,9 @@ export default function TabShell({
   const leftOpacity  = isLeft ? 1 : isRight ? ZONE_EDGE_PEEK_OPACITY * (1 - dp) : ZONE_EDGE_PEEK_OPACITY
   const rightOpacity = isRight ? 1 : isLeft  ? ZONE_EDGE_PEEK_OPACITY * (1 - dp) : ZONE_EDGE_PEEK_OPACITY
 
-  // Mist background: layered radials during active drag/wait; simple gradient at rest.
-  const leftBg  = isLeft  ? MIST_LEFT  : PEEK_LEFT
-  const rightBg = isRight ? MIST_RIGHT : PEEK_RIGHT
+  // Solid background during active drag/wait; simple peek gradient at rest.
+  const leftBg  = isLeft  ? SOLID_LEFT  : PEEK_LEFT
+  const rightBg = isRight ? SOLID_RIGHT : PEEK_RIGHT
 
   // Transition: spring when entering waiting, smooth snap-back at rest, instant during drag.
   const zoneTransition = dd === null
@@ -332,38 +324,22 @@ export default function TabShell({
         }}
       >
         {showLeftLabel && (
-          dw ? (
-            // Waiting state — big icon + label centred in the dense (screen-edge) portion
-            <div
-              className="absolute inset-y-0 flex flex-col items-center justify-center gap-3"
-              style={{ left: 0, width: `${WAIT_FILL * 55}%` }}
-            >
-              <div style={{ color: ZONE_LABEL_COLOR }}>
-                <ZoneIcon label={dl} size={44} />
-              </div>
-              <span style={{
-                color: ZONE_LABEL_COLOR,
-                fontSize: "20px",
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                lineHeight: 1,
-                textShadow: "0 1px 6px rgba(0,0,0,0.25)",
-                whiteSpace: "nowrap",
-              }}>
-                {dl}
-              </span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div style={{ color: ZONE_LABEL_COLOR }}>
+              <ZoneIcon label={dl} size={ZONE_ICON_SIZE_PX} />
             </div>
-          ) : (
-            // Drag-in-progress — small text label (existing behaviour)
-            <div
-              className="absolute inset-y-0 flex items-center"
-              style={{ left: "1rem", right: `${ZONE_FRONT_FEATHER_PX + 8}px`, justifyContent: "flex-end", minWidth: ZONE_LABEL_SHOW_PX }}
-            >
-              <span className="text-sm font-bold whitespace-nowrap" style={{ color: ZONE_LABEL_COLOR }}>
-                {dl}
-              </span>
-            </div>
-          )
+            <span style={{
+              color: ZONE_LABEL_COLOR,
+              fontSize: ZONE_LABEL_FONT_SIZE,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+              textShadow: "0 2px 8px rgba(0,0,0,0.35)",
+              whiteSpace: "nowrap",
+            }}>
+              {dl}
+            </span>
+          </div>
         )}
       </div>
 
@@ -384,38 +360,22 @@ export default function TabShell({
         }}
       >
         {showRightLabel && (
-          dw ? (
-            // Waiting state — big icon + label centred in the dense (screen-edge) portion
-            <div
-              className="absolute inset-y-0 flex flex-col items-center justify-center gap-3"
-              style={{ right: 0, width: `${WAIT_FILL * 55}%` }}
-            >
-              <div style={{ color: ZONE_LABEL_COLOR }}>
-                <ZoneIcon label={dl} size={44} />
-              </div>
-              <span style={{
-                color: ZONE_LABEL_COLOR,
-                fontSize: "20px",
-                fontWeight: 700,
-                letterSpacing: "-0.02em",
-                lineHeight: 1,
-                textShadow: "0 1px 6px rgba(0,0,0,0.25)",
-                whiteSpace: "nowrap",
-              }}>
-                {dl}
-              </span>
+          <div className="absolute inset-0 flex flex-col items-center justify-center gap-3">
+            <div style={{ color: ZONE_LABEL_COLOR }}>
+              <ZoneIcon label={dl} size={ZONE_ICON_SIZE_PX} />
             </div>
-          ) : (
-            // Drag-in-progress — small text label
-            <div
-              className="absolute inset-y-0 flex items-center"
-              style={{ right: "1rem", left: `${ZONE_FRONT_FEATHER_PX + 8}px`, justifyContent: "flex-start", minWidth: ZONE_LABEL_SHOW_PX }}
-            >
-              <span className="text-sm font-bold whitespace-nowrap" style={{ color: ZONE_LABEL_COLOR }}>
-                {dl}
-              </span>
-            </div>
-          )
+            <span style={{
+              color: ZONE_LABEL_COLOR,
+              fontSize: ZONE_LABEL_FONT_SIZE,
+              fontWeight: 800,
+              letterSpacing: "-0.02em",
+              lineHeight: 1,
+              textShadow: "0 2px 8px rgba(0,0,0,0.35)",
+              whiteSpace: "nowrap",
+            }}>
+              {dl}
+            </span>
+          </div>
         )}
       </div>
 

@@ -51,6 +51,12 @@ export const ZONE_FRONT_FEATHER_PX = 48
 // Zone must be at least this wide (px) before the action label appears.
 export const ZONE_LABEL_SHOW_PX = 100
 
+// Icon size (px) shown in the zone during drag and waiting state.
+export const ZONE_ICON_SIZE_PX = 64
+
+// Label font size inside the zone during drag and waiting state.
+export const ZONE_LABEL_FONT_SIZE = "30px"
+
 export interface SwipeActionConfig {
   label: string
 }

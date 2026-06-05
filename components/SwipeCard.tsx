@@ -47,7 +47,9 @@ export default function SwipeCard({
   const [dragX, setDragX] = useState(0)
   const [isExiting, setIsExiting] = useState(false)
   const [isWaiting, setIsWaiting] = useState(false)
+  const [isSnapping, setIsSnapping] = useState(false)
   const exitDirRef = useRef<"left" | "right" | null>(null)
+  const snapTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   // ── confirm / cancel waiting ──────────────────────────────────────────────
 
@@ -67,6 +69,9 @@ export default function SwipeCard({
     waitingDirRef.current = null
     setIsWaiting(false)
     setDragX(0)
+    setIsSnapping(true)
+    if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+    snapTimerRef.current = setTimeout(() => setIsSnapping(false), 280)
     onDragProgressRef.current?.(0, null)
   }, [])
 
@@ -165,7 +170,10 @@ export default function SwipeCard({
       setIsWaiting(true)
       onDragProgressRef.current?.(WAIT_FILL, dir, true)
     } else {
-      // Snap back
+      // Snap back — keep card elevated until animation completes
+      setIsSnapping(true)
+      if (snapTimerRef.current) clearTimeout(snapTimerRef.current)
+      snapTimerRef.current = setTimeout(() => setIsSnapping(false), 280)
       onDragProgressRef.current?.(0, null)
       setDragX(0)
     }
@@ -183,6 +191,8 @@ export default function SwipeCard({
       el.removeEventListener("touchend", handleTouchEnd)
     }
   }, [handleTouchStart, handleTouchMove, handleTouchEnd])
+
+  useEffect(() => () => { if (snapTimerRef.current) clearTimeout(snapTimerRef.current) }, [])
 
   // ── fly-off callback after exit animation ─────────────────────────────────
 
@@ -229,8 +239,10 @@ export default function SwipeCard({
     ? "transform 0.25s ease"
     : "none"
 
+  const isCardElevated = dragX !== 0 || isWaiting || isExiting || isSnapping
+
   return (
-    <div ref={cardRef} className="relative z-10 select-none touch-pan-y">
+    <div ref={cardRef} className={`relative select-none touch-pan-y ${isCardElevated ? "z-[20]" : "z-[0]"}`}>
       <div
         className={`${cardClassName} overflow-hidden relative`}
         style={{
