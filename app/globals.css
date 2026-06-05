@@ -9,7 +9,7 @@
 :root {
   /* Tab bar visible height (excluding safe-area-inset-bottom).
      Change here only — FAB, UndoToast, and zone bottom all read var(--tab-bar-h). */
-  --tab-bar-h: 10.5rem;
+  --tab-bar-h: 7rem;
 }
 
 * {
