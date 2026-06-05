@@ -313,7 +313,7 @@ export default function TabShell({
         style={{
           position: "fixed",
           top: 0,
-          bottom: 0,
+          bottom: "calc(var(--tab-bar-h) + env(safe-area-inset-bottom))",
           left: 0,
           zIndex: 1,
           width: leftWidthVal,
@@ -349,7 +349,7 @@ export default function TabShell({
         style={{
           position: "fixed",
           top: 0,
-          bottom: 0,
+          bottom: "calc(var(--tab-bar-h) + env(safe-area-inset-bottom))",
           right: 0,
           zIndex: 1,
           width: rightWidthVal,
@@ -432,7 +432,18 @@ export default function TabShell({
         className="relative z-30 shrink-0 bg-white border-t border-stone-200"
         style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
       >
-        <div className="relative h-14 overflow-hidden">
+        <div className="relative overflow-hidden" style={{ height: "var(--tab-bar-h)" }}>
+
+          {/* Center marker surface — painted first so tab items render on top.
+              Absolutely fixed to center third; never participates in tab-strip transform. */}
+          <div
+            className="absolute inset-y-0 pointer-events-none"
+            style={{
+              left: `${ITEM_VW}vw`,
+              width: `${ITEM_VW}vw`,
+              background: "rgba(20, 184, 166, 0.10)",
+            }}
+          />
 
           {/* Flowing tab item strip */}
           <div
@@ -454,17 +465,17 @@ export default function TabShell({
                   className={`flex flex-col items-center justify-center gap-1 transition-colors ${
                     isActive ? "text-teal-700" : "text-stone-400"
                   }`}
-                  style={{ width: `${ITEM_VW}vw`, height: "3.5rem" }}
+                  style={{ width: `${ITEM_VW}vw`, height: "var(--tab-bar-h)" }}
                 >
                   <div className="relative">
-                    <tab.Icon size={20} />
+                    <tab.Icon size={48} />
                     {logicalId === "shopping" && shoppingBadge > 0 && (
-                      <span className="absolute -right-2 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-rose-500 text-[9px] font-bold text-white">
+                      <span className="absolute -right-3 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-rose-500 text-[10px] font-bold text-white">
                         {shoppingBadge > 9 ? "9+" : shoppingBadge}
                       </span>
                     )}
                     {logicalId === "home" && homeItemCount > 0 && (
-                      <span className="absolute -right-2 -top-1 flex h-4 w-4 items-center justify-center rounded-full bg-amber-400 text-[9px] font-bold text-white">
+                      <span className="absolute -right-3 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-amber-400 text-[10px] font-bold text-white">
                         {homeItemCount > 9 ? "9+" : homeItemCount}
                       </span>
                     )}
@@ -473,14 +484,6 @@ export default function TabShell({
                 </button>
               )
             })}
-          </div>
-
-          {/* Center marker — absolutely positioned, never transforms */}
-          <div
-            className="absolute inset-y-0 pointer-events-none"
-            style={{ left: `${ITEM_VW}vw`, width: `${ITEM_VW}vw` }}
-          >
-            <div className="absolute top-0 inset-x-4 h-0.5 rounded-full bg-teal-600" />
           </div>
 
         </div>

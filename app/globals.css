@@ -6,6 +6,12 @@
   --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
 }
 
+:root {
+  /* Tab bar visible height (excluding safe-area-inset-bottom).
+     Change here only — FAB, UndoToast, and zone bottom all read var(--tab-bar-h). */
+  --tab-bar-h: 10.5rem;
+}
+
 * {
   -webkit-tap-highlight-color: transparent;
 }
